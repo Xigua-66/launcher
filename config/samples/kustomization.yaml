@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- ecns_v1_plan.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples
