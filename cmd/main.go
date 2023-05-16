@@ -33,6 +33,7 @@ import (
 
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/internal/controller"
+	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -45,6 +46,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(ecnsv1.AddToScheme(scheme))
+
+	utilruntime.Must(clusteropenstack.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

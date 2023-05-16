@@ -23,7 +23,11 @@ import (
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
+const (
+	// MachineFinalizer allows ReconcileOpenStackMachine to clean up OpenStack resources associated with OpenStackMachine before
+	// removing it from the apiserver.
+	MachineFinalizer = "plan.ecns.easystack.com"
+)
 // PlanSpec defines the desired state of Plan
 type PlanSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -76,6 +80,9 @@ type PlanSpec struct {
 	// OtherAnsibleOpts is the ansible custome vars
 	// OtherAnsibleOpts => ansible test/vars.yaml
 	OtherAnsibleOpts map[string]string `json:"other_ansible_opts,omitempty"`
+
+	//Paused is the flag to pause the plan
+	Paused bool `json:"paused,omitempty"`
 }
 
 // MonitorConfig is the monitor other config
@@ -96,22 +103,22 @@ type MonitorConfig struct {
 // and set the SSH  rsa  to the Bastion machine
 type MachineSetReconcile struct {
 	// image is the image of machine
-	image string `json:"image"`
+	Image string `json:"image"`
 	// Flavor is the flavor of machine
-	flavor string `json:"flavor"`
+	Flavor string `json:"flavor"`
 	// replica is the replica of machine
-	replica int `json:"replica"`
+	Replica int `json:"replica"`
 	// Role is the role of machine
-	role string `json:"role"`
+	Role string `json:"role"`
 	// AvailabilityZone are a set of failure domains for machines
 	// decide the every machine's AZ
 	AvailabilityZone []string `json:"availability_zone"`
 	// subnets are a set of subnets for machines
 	// decide the every machine's subnet
 	// when NetMode == existed, the subnets is required
-	subnets []*Subnet `json:"subnets,omitempty"`
+	Subnets []*Subnet `json:"subnets,omitempty"`
 	// floatingIPPool are the floating ip pool of machine
-	floatingIPPool []*FloatIP `json:"floating_ip_pool,omitempty"`
+	FloatingIPPool []*FloatIP `json:"floating_ip_pool,omitempty"`
 	// Volumes are the volume type of machine,include root volume and data volume
 	Volumes []volume `json:"volume_types,omitempty"`
 
@@ -167,7 +174,7 @@ type MachineSetStatus struct {
 type MachineStatus struct {
 	// name is the name of machine
 	Name   string                                   `json:"name,omitempty"`
-	status *clusteropenstack.OpenStackMachineStatus `json:"status,omitempty"`
+	Status *clusteropenstack.OpenStackMachineStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
