@@ -131,7 +131,6 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, scope, patchHelper, plan)
 
-	return ctrl.Result{}, nil
 }
 
 func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
