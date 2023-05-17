@@ -40,19 +40,19 @@ const (
 	caSecretKey     = "cacert"
 )
 
-type  NewAuthInfo struct {
+type NewAuthInfo struct {
 	clientconfig.AuthInfo
 	TrustID string `yaml:"trust_id,omitempty" json:"trust_id,omitempty"`
 }
 
 // NewCloud represents an entry in a clouds.yaml/public-clouds.yaml/secure.yaml file.
 type NewCloud struct {
-	Cloud      string    `yaml:"cloud,omitempty" json:"cloud,omitempty"`
-	Profile    string    `yaml:"profile,omitempty" json:"profile,omitempty"`
-	AuthInfo   *NewAuthInfo `yaml:"auth,omitempty" json:"auth,omitempty"`
-	AuthType   clientconfig.AuthType  `yaml:"auth_type,omitempty" json:"auth_type,omitempty"`
-	RegionName string    `yaml:"region_name,omitempty" json:"region_name,omitempty"`
-	Regions    []clientconfig.Region  `yaml:"regions,omitempty" json:"regions,omitempty"`
+	Cloud      string                `yaml:"cloud,omitempty" json:"cloud,omitempty"`
+	Profile    string                `yaml:"profile,omitempty" json:"profile,omitempty"`
+	AuthInfo   *NewAuthInfo          `yaml:"auth,omitempty" json:"auth,omitempty"`
+	AuthType   clientconfig.AuthType `yaml:"auth_type,omitempty" json:"auth_type,omitempty"`
+	RegionName string                `yaml:"region_name,omitempty" json:"region_name,omitempty"`
+	Regions    []clientconfig.Region `yaml:"regions,omitempty" json:"regions,omitempty"`
 
 	// EndpointType and Interface both specify whether to use the public, internal,
 	// or admin interface of a service. They should be considered synonymous, but
@@ -84,7 +84,7 @@ type NewClouds struct {
 	Clouds map[string]NewCloud `yaml:"clouds" json:"clouds"`
 }
 
-func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string,cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
+func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string, cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
 	var cloud NewCloud
 	var caCert []byte
 
@@ -131,23 +131,23 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 		Rt:     provider.HTTPClient.Transport,
 		Logger: &defaultLogger{},
 	}
-	if cloud.AuthInfo.TrustID!="" {
-		tokenauth:=tokens.AuthOptions{}
-		tokenauth.IdentityEndpoint=opts.IdentityEndpoint
-		tokenauth.UserID=opts.UserID
-		tokenauth.Username=opts.Username
-		tokenauth.Password=opts.Password
-		tokenauth.DomainID=opts.DomainID
-		tokenauth.DomainName=opts.DomainName
-		tokenauth.ApplicationCredentialID=opts.ApplicationCredentialID
-		tokenauth.ApplicationCredentialName=opts.ApplicationCredentialName
-		tokenauth.ApplicationCredentialSecret=opts.ApplicationCredentialSecret
-		tokenauth.AllowReauth=opts.AllowReauth
-		if opts.Scope!=nil {
-			tokenauth.Scope.ProjectID=opts.Scope.ProjectID
-			tokenauth.Scope.ProjectName=opts.Scope.ProjectName
-			tokenauth.Scope.DomainName=opts.Scope.DomainName
-			tokenauth.Scope.DomainID=opts.Scope.DomainID
+	if cloud.AuthInfo.TrustID != "" {
+		tokenauth := tokens.AuthOptions{}
+		tokenauth.IdentityEndpoint = opts.IdentityEndpoint
+		tokenauth.UserID = opts.UserID
+		tokenauth.Username = opts.Username
+		tokenauth.Password = opts.Password
+		tokenauth.DomainID = opts.DomainID
+		tokenauth.DomainName = opts.DomainName
+		tokenauth.ApplicationCredentialID = opts.ApplicationCredentialID
+		tokenauth.ApplicationCredentialName = opts.ApplicationCredentialName
+		tokenauth.ApplicationCredentialSecret = opts.ApplicationCredentialSecret
+		tokenauth.AllowReauth = opts.AllowReauth
+		if opts.Scope != nil {
+			tokenauth.Scope.ProjectID = opts.Scope.ProjectID
+			tokenauth.Scope.ProjectName = opts.Scope.ProjectName
+			tokenauth.Scope.DomainName = opts.Scope.DomainName
+			tokenauth.Scope.DomainID = opts.Scope.DomainID
 		}
 		authOptsExt := trusts.AuthOptsExt{
 			TrustID:            cloud.AuthInfo.TrustID,
@@ -161,7 +161,7 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 		if err != nil {
 			return nil, nil, "", err
 		}
-		return provider,clientOpts,projectID,nil
+		return provider, clientOpts, projectID, nil
 	}
 	err = openstack.Authenticate(provider, *opts)
 	if err != nil {

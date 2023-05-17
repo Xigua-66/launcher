@@ -28,6 +28,7 @@ const (
 	// removing it from the apiserver.
 	MachineFinalizer = "plan.ecns.easystack.com"
 )
+
 // PlanSpec defines the desired state of Plan
 type PlanSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -102,6 +103,8 @@ type MonitorConfig struct {
 // Maybe we should create a Bastion machine for master machine to access
 // and set the SSH  rsa  to the Bastion machine
 type MachineSetReconcile struct {
+	// Name is the name of machine
+	Name string `json:"name"`
 	// image is the image of machine
 	Image string `json:"image"`
 	// Flavor is the flavor of machine
@@ -110,21 +113,22 @@ type MachineSetReconcile struct {
 	Replica int `json:"replica"`
 	// Role is the role of machine
 	Role string `json:"role"`
-	// AvailabilityZone are a set of failure domains for machines
-	// decide the every machine's AZ
-	AvailabilityZone []string `json:"availability_zone"`
-	// subnets are a set of subnets for machines
-	// decide the every machine's subnet
-	// when NetMode == existed, the subnets is required
-	Subnets []*Subnet `json:"subnets,omitempty"`
-	// floatingIPPool are the floating ip pool of machine
-	FloatingIPPool []*FloatIP `json:"floating_ip_pool,omitempty"`
-	// Volumes are the volume type of machine,include root volume and data volume
-	Volumes []volume `json:"volume_types,omitempty"`
-
+	// Infras is the infras of machine
+	Infra []*Infras `json:"infras,omitempty"`
 	// CloudInit is the cloud init secret of machine,base64 file,can use it to config the machine
 	// such as init disk...
 	CloudInit string `json:"init,omitempty"`
+}
+type Infras struct {
+	// AvailabilityZone are a set of failure domains for machines
+	// decide the every machine's AZ
+	AvailabilityZone string `json:"availability_zone"`
+	// subnets are a set of subnets for machines
+	// decide the every machine's subnet
+	// when NetMode == existed, the subnets is required
+	Subnets *Subnet `json:"subnets,omitempty"`
+	// Volumes are the volume type of machine,include root volume and data volume
+	Volumes volume `json:"volume_types,omitempty"`
 }
 type volume struct {
 	// VolumeType is the volume type of machine
@@ -139,12 +143,8 @@ type Subnet struct {
 	SubnetNetwork string `json:"subnet_network"`
 	// uuid is the subnet uuid of subnet
 	SubnetUUID string `json:"subnet_uuid"`
-}
-type FloatIP struct {
-	// Enable is the flag to decide to get float ip or no
-	Enable string `json:"enable"`
-	// fip is the float ip of machine
-	Fip string `json:"fip"`
+	// FixIP is the fix ip of subnet
+	FixIP string `json:"fix_ip"`
 }
 
 // PlanStatus defines the observed state of Plan
@@ -161,6 +161,8 @@ type PlanStatus struct {
 	FailureMessage []*string `json:"failureMessage,omitempty"`
 }
 type MachineSetStatus struct {
+	// name is the name of machineset
+	Name string `json:"name"`
 	// ready is the number of ready machine
 	Ready int `json:"ready"`
 	// replicasnoew is the number of replicas machines

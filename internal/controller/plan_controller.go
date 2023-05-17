@@ -98,7 +98,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		if cluster.Spec.Paused == true {
 			log.Info("Cluster is already paused")
 			return ctrl.Result{}, nil
-		}else{
+		} else {
 			cluster.Spec.Paused = true
 			if err := r.Client.Update(ctx, cluster); err != nil {
 				return ctrl.Result{}, err
@@ -113,17 +113,15 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-
-
-	osProviderClient, clientOpts, projectID, err := provider.NewClientFromSecret(ctx, r.Client, req.Namespace,defaultopenstackadminconfsecret,"default")
+	osProviderClient, clientOpts, projectID, err := provider.NewClientFromSecret(ctx, r.Client, req.Namespace, defaultopenstackadminconfsecret, "default")
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	scope := &scope.Scope{
-			ProviderClient:     osProviderClient,
-			ProviderClientOpts: clientOpts,
-			ProjectID:          projectID,
-			Logger:             log,
+		ProviderClient:     osProviderClient,
+		ProviderClientOpts: clientOpts,
+		ProjectID:          projectID,
+		Logger:             log,
 	}
 
 	if !plan.DeletionTimestamp.IsZero() {
@@ -132,7 +130,6 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, scope, patchHelper, plan)
-
 
 	return ctrl.Result{}, nil
 }
@@ -152,7 +149,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 
 	// get or create sshkeys secret
 	_, _, err = utils.GetOrCreateSSHKeySecret(ctx, r.Client, plan)
-	if err!=nil {
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 	// TODO get or create openstack auth config secret
@@ -170,48 +167,46 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if len(machineSets.Items)==0 {
+	if len(machineSets.Items) == 0 {
 		// create all machineset
-		for i, set := range plan.Spec.MachineSets {
+		for _, set := range plan.Spec.MachineSets {
 			// create machineset
-			err := utils.CreateMachineSet(ctx, r.Client, plan, set, i)
+			err := utils.CreateMachineSet(ctx, r.Client, plan, set)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-	}else{
+	} else {
 		// skip create machineset
 
 	}
 	// Reconcile every machineset replicas
-	err = r.syncMachine(machineSets,plan.Spec.MachineSets)
-	if err!=nil {
+	err = r.syncMachine(machineSets, plan.Spec.MachineSets)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 	// update plan status
 	err = r.updateStatus(ctx, plan)
-	if err!=nil {
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *PlanReconciler) reconcileDelete(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error){
-	return ctrl.Result{},nil
+func (r *PlanReconciler) reconcileDelete(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
+	return ctrl.Result{}, nil
 }
 
-//TODO sync every machineset and other resource replicas to plan
-func (r *PlanReconciler) syncMachine(ms clusterapi.MachineSetList,es []*ecnsv1.MachineSetReconcile) error {
+// TODO sync every machineset and other resource replicas to plan
+func (r *PlanReconciler) syncMachine(ms clusterapi.MachineSetList, es []*ecnsv1.MachineSetReconcile) error {
 
 	return nil
 }
 
-//TODO update plan status
+// TODO update plan status
 func (r *PlanReconciler) updateStatus(ctx context.Context, plan *ecnsv1.Plan) error {
 	return nil
 }
-
-
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
