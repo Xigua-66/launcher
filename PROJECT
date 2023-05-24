@@ -5,6 +5,7 @@
 domain: easystack.com
 layout:
 - go.kubebuilder.io/v4
+multigroup: true
 projectName: easystack-eks-op
 repo: easystack.com/plan
 resources:
@@ -15,6 +16,14 @@ resources:
   domain: easystack.com
   group: ecns
   kind: Plan
+  path: easystack.com/plan/api/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: easystack.com
+  kind: AnsiblePlan
   path: easystack.com/plan/api/v1
   version: v1
 version: "3"

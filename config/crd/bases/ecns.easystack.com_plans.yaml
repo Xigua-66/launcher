@@ -45,6 +45,16 @@ spec:
               cni_work_mode:
                 description: CniWorkMode is the cni work mode
                 type: string
+              dns_nameservers:
+                description: DNSNameservers is the dns nameservers of subnet which
+                  auto created
+                items:
+                  type: string
+                type: array
+              external_network_id:
+                description: externalNetworkId is the external network id WHEN use_float_ip
+                  is true, we will get a fip from this network
+                type: string
               k8sVersion:
                 description: K8sVersion is the version of kubernetes => ansible kubernetes
                   tag
@@ -88,25 +98,27 @@ spec:
                             - subnet_network
                             - subnet_uuid
                             type: object
-                          volume_types:
+                          volumes:
                             description: Volumes are the volume type of machine,include
                               root volume and data volume
-                            properties:
-                              index:
-                                description: Index is the index of volume 0==root
-                                  volume
-                                type: integer
-                              volume_size:
-                                description: VolumeSize is the volume size of machine
-                                type: integer
-                              volume_type:
-                                description: VolumeType is the volume type of machine
-                                type: string
-                            required:
-                            - index
-                            - volume_size
-                            - volume_type
-                            type: object
+                            items:
+                              properties:
+                                index:
+                                  description: Index is the index of volume 0==root
+                                    volume
+                                  type: integer
+                                volume_size:
+                                  description: VolumeSize is the volume size of machine
+                                  type: integer
+                                volume_type:
+                                  description: VolumeType is the volume type of machine
+                                  type: string
+                              required:
+                              - index
+                              - volume_size
+                              - volume_type
+                              type: object
+                            type: array
                         required:
                         - availability_zone
                         type: object
@@ -120,6 +132,7 @@ spec:
                       type: string
                     replica:
                       description: replica is the replica of machine
+                      format: int32
                       type: integer
                     role:
                       description: Role is the role of machine
@@ -151,6 +164,9 @@ spec:
                 - pvc_cap
                 - pvc_type
                 type: object
+              node_cidr:
+                description: NodeCIDR is the node cidr of subnet which auto created
+                type: string
               other_ansible_opts:
                 additionalProperties:
                   type: string
@@ -181,10 +197,13 @@ spec:
             - cluster_name
             - cni_type
             - cni_work_mode
+            - dns_nameservers
+            - external_network_id
             - k8sVersion
             - machine_sets
             - mode
             - monitor
+            - node_cidr
             - pod_cidr
             - repo
             - ssh_key
@@ -1392,7 +1411,16 @@ spec:
                 description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
                   of cluster Important: Run "make" to regenerate code after modifying
                   this file ServerGroupID is the server group id of cluster'
-                type: string
+                properties:
+                  master_server_group_id:
+                    description: MasterServerGroupID is the server group id of master
+                      machine
+                    type: string
+                  worker_server_group_id:
+                    description: WorkerServerGroupID is the server group id of worker
+                      machine
+                    type: string
+                type: object
             required:
             - cluster_status
             - machine_sets

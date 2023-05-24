@@ -63,6 +63,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - easystack.com
+  resources:
+  - ansibleplans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - easystack.com
+  resources:
+  - ansibleplans/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - easystack.com
+  resources:
+  - ansibleplans/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - ecns.easystack.com
   resources:
   - plans

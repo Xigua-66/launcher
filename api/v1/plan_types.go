@@ -27,6 +27,9 @@ const (
 	// MachineFinalizer allows ReconcileOpenStackMachine to clean up OpenStack resources associated with OpenStackMachine before
 	// removing it from the apiserver.
 	MachineFinalizer = "plan.ecns.easystack.com"
+
+	// ClusterNameLabelName is the cluster label name
+	MachineSetClusterLabelName = "cluster.x-k8s.io/cluster-name"
 )
 
 // PlanSpec defines the desired state of Plan
@@ -55,8 +58,15 @@ type PlanSpec struct {
 	// UseFloatIP decied to get fips or no
 	UseFloatIP bool `json:"use_float_ip"`
 
-	// 公网IP带宽...
-	// 公网IP资源池...
+	// externalNetworkId is the external network id
+	// WHEN use_float_ip is true, we will get a fip from this network
+	ExternalNetworkId string `json:"external_network_id"`
+
+	// DNSNameservers is the dns nameservers of subnet which auto created
+	DNSNameservers []string `json:"dns_nameservers"`
+
+	// NodeCIDR is the node cidr of subnet which auto created
+	NodeCIDR string `json:"node_cidr"`
 
 	MachineSets []*MachineSetReconcile `json:"machine_sets"`
 
@@ -110,7 +120,7 @@ type MachineSetReconcile struct {
 	// Flavor is the flavor of machine
 	Flavor string `json:"flavor"`
 	// replica is the replica of machine
-	Replica int `json:"replica"`
+	Replica int32 `json:"replica"`
 	// Role is the role of machine
 	Role string `json:"role"`
 	// Infras is the infras of machine
@@ -128,7 +138,7 @@ type Infras struct {
 	// when NetMode == existed, the subnets is required
 	Subnets *Subnet `json:"subnets,omitempty"`
 	// Volumes are the volume type of machine,include root volume and data volume
-	Volumes volume `json:"volume_types,omitempty"`
+	Volumes []*volume `json:"volumes,omitempty"`
 }
 type volume struct {
 	// VolumeType is the volume type of machine
@@ -152,7 +162,7 @@ type PlanStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	//ServerGroupID is the server group id of cluster
-	ServerGroupID string `json:"server_group_id,omitempty"`
+	ServerGroupID *servergroups `json:"server_group_id,omitempty"`
 	// MachineSets status
 	MachineSets []*MachineSetStatus `json:"machine_sets"`
 	// ClusterStatus is the status of cluster
@@ -160,6 +170,14 @@ type PlanStatus struct {
 	// FailureMessage are the all failure message
 	FailureMessage []*string `json:"failureMessage,omitempty"`
 }
+
+type servergroups struct {
+	// MasterServerGroupID is the server group id of master machine
+	MasterServerGroupID string `json:"master_server_group_id,omitempty"`
+	// WorkerServerGroupID is the server group id of worker machine
+	WorkerServerGroupID string `json:"worker_server_group_id,omitempty"`
+}
+
 type MachineSetStatus struct {
 	// name is the name of machineset
 	Name string `json:"name"`

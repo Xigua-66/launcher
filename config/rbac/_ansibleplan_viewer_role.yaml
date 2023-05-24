@@ -1,0 +1,27 @@
+# permissions for end users to view ansibleplans.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: ansibleplan-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: easystack-eks-op
+    app.kubernetes.io/part-of: easystack-eks-op
+    app.kubernetes.io/managed-by: kustomize
+  name: ansibleplan-viewer-role
+rules:
+- apiGroups:
+  - easystack.com
+  resources:
+  - ansibleplans
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - easystack.com
+  resources:
+  - ansibleplans/status
+  verbs:
+  - get

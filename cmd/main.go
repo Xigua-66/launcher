@@ -31,9 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
+
+	easystackcomv1 "easystack.com/plan/api/v1"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/internal/controller"
-	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -48,6 +50,7 @@ func init() {
 	utilruntime.Must(ecnsv1.AddToScheme(scheme))
 
 	utilruntime.Must(clusteropenstack.AddToScheme(scheme))
+	utilruntime.Must(easystackcomv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -97,6 +100,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Plan")
+		os.Exit(1)
+	}
+	if err = (&controller.AnsiblePlanReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AnsiblePlan")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
