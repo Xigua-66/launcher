@@ -45,9 +45,7 @@ spec:
                 description: Done is the flag to indicate the plan is done
                 type: boolean
               install:
-                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
-                  NodePools are the node pools'
+                description: NodePools are the node pools
                 properties:
                   etcd:
                     description: Etcd is the etcd group
@@ -112,6 +110,12 @@ spec:
                 description: ProcessPID is the task of running linux  pid
                 format: int32
                 type: integer
+              type:
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file'
+                type: string
+            required:
+            - type
             type: object
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan

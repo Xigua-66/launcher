@@ -86,6 +86,7 @@ type PlanMachineSetBind struct {
 func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	// Fetch the OpenStackMachine instance.
+
 	plan := &ecnsv1.Plan{}
 	err := r.Client.Get(ctx, req.NamespacedName, plan)
 	if err != nil {
@@ -165,6 +166,8 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 	scope.Logger.Info("Reconciling plan openstack resource")
 	// get gopher cloud client
+	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas changed
+
 	//create trust user
 	// TODO get cluster uuid
 	clusterUUID := ""
@@ -238,6 +241,10 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	// TODO check all machineset replicas is ready to num,create ansible plan
+	// 1.check status replicas
+	// 2.check ansible plan is exist,name=plan.Spec.ClusterName + plan.Spec.Version
 	return ctrl.Result{}, nil
 }
 

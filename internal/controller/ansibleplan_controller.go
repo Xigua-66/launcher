@@ -56,6 +56,7 @@ type AnsiblePlanReconciler struct {
 func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	log.Info("start ansible reconcile")
+
 	// Fetch the AnsiblePlan instance
 	ansible := &easystackcomv1.AnsiblePlan{}
 	err := r.Get(ctx, req.NamespacedName, ansible)
@@ -114,8 +115,20 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 		log.Info("ansible plan is running,check status")
 		status, err := process.NewProcess(*ansible.Spec.ProcessPID)
 		if err != nil {
-			// TODO if pid is stopped, set status to failed and restart new ansible plan process
-			log.Error(err, "get process status failed")
+			// TODO if pid is not found, set status to failed and restart new ansible plan process
+			if err == process.ErrorProcessNotRunning {
+				log.Info("ansible plan process is not running,reset status and restart new process")
+				// update status
+				ansible.Status.ProcessStatus.ProcessStatus = easystackcomv1.PIDStatusStop
+				ansible.Status.ProcessStatus.ProcessPID = nil
+				ansible.Status.ProcessData = ""
+				if err := patchHelper.Patch(ctx, ansible); err != nil {
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{}, nil
+
+			}
+			log.Error(err, "get process status failed but not excepted")
 			return ctrl.Result{}, err
 		}
 		ansible.Status.ProcessStatus.ProcessPID = &status.Pid

@@ -19,6 +19,7 @@ package controller
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -46,7 +47,8 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 
 func TestConmand(t *testing.T) {
-	cmd := exec.Command("ansible", "all", "-i", "./inventory.example", "-m", "setup")
+	cmd := exec.Command("ls", "-l", "-a")
+	//cmd := exec.Command("ansible","all", "-i", "./inventory.example","-m", "setup")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -60,9 +62,13 @@ func TestConmand(t *testing.T) {
 	for scanner.Scan() {
 		fmt.Println(scanner.Text())
 	}
+
 	if err := cmd.Wait(); err != nil {
-		fmt.Println("Error:", err)
-		fmt.Println(cmd.Process.Pid)
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			log.Printf("Exit Status: %v", exiterr)
+		} else {
+			log.Fatalf("cmd.Wait: %v", err)
+		}
 		return
 	}
 }

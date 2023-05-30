@@ -27,6 +27,7 @@ import (
 type AnsiblePlanSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Type ExecType `json:"type"`
 	// NodePools are the node pools
 	Install *AnsibleInstall `json:"install,omitempty"`
 	// ProcessPID is the task of running linux  pid
@@ -101,6 +102,15 @@ const (
 	PIDStatusStop PIDStatus = "stopped"
 	// PIDStatusError is the process error
 	PIDStatusError PIDStatus = "error"
+)
+
+type ExecType string
+
+const (
+	// ExecTypeInstall is the install type
+	ExecTypeInstall ExecType = "install"
+	// ExecTypeScale is the scale type
+	ExecTypeScale ExecType = "scale"
 )
 
 //+kubebuilder:object:root=true

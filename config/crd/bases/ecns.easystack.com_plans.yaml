@@ -1270,6 +1270,94 @@ spec:
                 items:
                   type: string
                 type: array
+              last_plan_machine_sets:
+                description: LastPlanMachineSets is the histroy spec,to decide the
+                  AnsiblePlanSpec Type is scale or install
+                items:
+                  description: MachineSetReconcile is the  machine config Maybe we
+                    should create a Bastion machine for master machine to access and
+                    set the SSH  rsa  to the Bastion machine
+                  properties:
+                    flavor:
+                      description: Flavor is the flavor of machine
+                      type: string
+                    image:
+                      description: image is the image of machine
+                      type: string
+                    infras:
+                      description: Infras is the infras of machine
+                      items:
+                        properties:
+                          availability_zone:
+                            description: AvailabilityZone are a set of failure domains
+                              for machines decide the every machine's AZ
+                            type: string
+                          subnets:
+                            description: subnets are a set of subnets for machines
+                              decide the every machine's subnet when NetMode == existed,
+                              the subnets is required
+                            properties:
+                              fix_ip:
+                                description: FixIP is the fix ip of subnet
+                                type: string
+                              subnet_network:
+                                description: SubnetNetwork is the network of subnet
+                                type: string
+                              subnet_uuid:
+                                description: uuid is the subnet uuid of subnet
+                                type: string
+                            required:
+                            - fix_ip
+                            - subnet_network
+                            - subnet_uuid
+                            type: object
+                          volumes:
+                            description: Volumes are the volume type of machine,include
+                              root volume and data volume
+                            items:
+                              properties:
+                                index:
+                                  description: Index is the index of volume 0==root
+                                    volume
+                                  type: integer
+                                volume_size:
+                                  description: VolumeSize is the volume size of machine
+                                  type: integer
+                                volume_type:
+                                  description: VolumeType is the volume type of machine
+                                  type: string
+                              required:
+                              - index
+                              - volume_size
+                              - volume_type
+                              type: object
+                            type: array
+                        required:
+                        - availability_zone
+                        type: object
+                      type: array
+                    init:
+                      description: CloudInit is the cloud init secret of machine,base64
+                        file,can use it to config the machine such as init disk...
+                      type: string
+                    name:
+                      description: Name is the name of machine
+                      type: string
+                    replica:
+                      description: replica is the replica of machine
+                      format: int32
+                      type: integer
+                    role:
+                      description: Role is the role of machine
+                      type: string
+                  required:
+                  - flavor
+                  - image
+                  - name
+                  - replica
+                  - role
+                  type: object
+                type: array
               machine_sets:
                 description: MachineSets status
                 items:

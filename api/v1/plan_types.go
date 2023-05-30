@@ -174,6 +174,8 @@ type PlanStatus struct {
 	ClusterStatus *clusteropenstack.OpenStackClusterStatus `json:"cluster_status"`
 	// FailureMessage are the all failure message
 	FailureMessage []*string `json:"failureMessage,omitempty"`
+	// LastPlanMachineSets is the histroy spec,to decide the AnsiblePlanSpec Type is scale or install
+	LastPlanMachineSets []*MachineSetReconcile `json:"last_plan_machine_sets,omitempty"`
 }
 
 type servergroups struct {
