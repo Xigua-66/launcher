@@ -7,10 +7,13 @@ import (
 	"crypto/x509"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"encoding/pem"
+	"fmt"
 	"golang.org/x/crypto/ssh"
+	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
@@ -70,4 +73,29 @@ func GetOrCreateSSHKeySecret(ctx context.Context, client client.Client, plan *ec
 	pub := string(secret.Data["public_key"])
 	pri := string(secret.Data["private_key"])
 	return pub, pri, nil
+}
+
+// GetOrCreateSSHkeyFile  create private key file
+func GetOrCreateSSHkeyFile(ctx context.Context, cli client.Client, plan *ecnsv1.Plan) error {
+	path := fmt.Sprintf("/root/.ssh/id_rsa_%s", plan.Spec.ClusterName)
+	// judge if path of file exists
+	if FileExist(path) {
+		return nil
+	}
+	// get public key and private key
+	_, pri, err := GetOrCreateSSHKeySecret(context.Background(), cli, plan)
+	if err != nil {
+		return err
+	}
+	// create file
+	err = ioutil.WriteFile(path, []byte(pri), 0600)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func FileExist(path string) bool {
+	_, err := os.Lstat(path)
+	return !os.IsNotExist(err)
 }

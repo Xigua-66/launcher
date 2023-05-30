@@ -95,23 +95,22 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 	log = log.WithValues("plan", plan.Name)
+	cluster, err := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if cluster == nil {
+		log.Info("Cluster Controller has not yet set OwnerRef")
+		return reconcile.Result{}, nil
+	}
+
+	log = log.WithValues("cluster", cluster.Name)
 	if plan.Spec.Paused == true {
 		// set cluster.Spec.Paused = true
 		// first get the clusterv1.Cluster, then set cluster.Spec.Paused = true
 		// then update the cluster
 		// Fetch the Cluster.
-		cluster, err := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		if cluster == nil {
-			log.Info("Cluster Controller has not yet set OwnerRef")
-			return reconcile.Result{}, nil
-		}
-
-		log = log.WithValues("cluster", cluster.Name)
-
 		if cluster.Spec.Paused == true {
 			log.Info("Cluster is already paused")
 			return ctrl.Result{}, nil
@@ -124,6 +123,13 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 
 		return ctrl.Result{}, nil
+	} else {
+		if cluster.Spec.Paused == true {
+			cluster.Spec.Paused = false
+			if err := r.Client.Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 	}
 	patchHelper, err := patch.NewHelper(plan, r.Client)
 	if err != nil {

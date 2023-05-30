@@ -35,13 +35,106 @@ spec:
           spec:
             description: AnsiblePlanSpec defines the desired state of AnsiblePlan
             properties:
-              foo:
-                description: Foo is an example field of AnsiblePlan. Edit ansibleplan_types.go
-                  to remove/update
+              auto_run:
+                description: AutoRun is the flag to indicate the plan is auto run
+                type: boolean
+              cluster:
+                description: Plan is the plan name
                 type: string
+              done:
+                description: Done is the flag to indicate the plan is done
+                type: boolean
+              install:
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                  NodePools are the node pools'
+                properties:
+                  etcd:
+                    description: Etcd is the etcd group
+                    items:
+                      type: string
+                    type: array
+                  kubeIngress:
+                    description: KubeIngress is the kube ingress group
+                    items:
+                      type: string
+                    type: array
+                  kubeLog:
+                    description: KubeLog is the kube log group
+                    items:
+                      type: string
+                    type: array
+                  kubeMaster:
+                    description: KubeMaster is the kube master group
+                    items:
+                      type: string
+                    type: array
+                  kubeNode:
+                    description: KubeNode is the kube node group
+                    items:
+                      type: string
+                    type: array
+                  kubePrometheus:
+                    description: KubePrometheus is the kube prometheus group
+                    items:
+                      type: string
+                    type: array
+                  nodePools:
+                    description: 'NodePools are the node pools,we need print the config
+                      like this: # cat /etc/ansible/hosts node-1 ansible_ssh_host=22.200.2.196   ip=22.200.2.196
+                      ansible_ssh_private_key_file=/root/196.key ansible_ssh_common_args="-o
+                      ProxyCommand=\"sshpass -p ''test@passw0rd'' ssh -W %h:%p -q
+                      -p 22 root@172.50.0.144\""'
+                    items:
+                      properties:
+                        ansibleHost:
+                          description: AnsibleHost is the ansible host
+                          type: string
+                        ansibleIP:
+                          description: AnsibleIP is the ansible ip
+                          type: string
+                        ansibleProxy:
+                          description: AnsibleProxy is the ansible proxy
+                          type: string
+                        name:
+                          description: Name is the name of the node
+                          type: string
+                      type: object
+                    type: array
+                  other_ansible_opts:
+                    additionalProperties:
+                      type: string
+                    description: OtherAnsibleOpts is the ansible custome vars OtherAnsibleOpts
+                      => ansible test/vars.yaml
+                    type: object
+                type: object
+              process_pid:
+                description: ProcessPID is the task of running linux  pid
+                format: int32
+                type: integer
             type: object
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan
+            properties:
+              processData:
+                description: process is the data of ansible process
+                type: string
+              processStatus:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file ProcessStatus is the process status'
+                properties:
+                  processPID:
+                    description: ProcessPID is the linux  pid
+                    format: int32
+                    type: integer
+                  processStatus:
+                    description: ProcessStatus is the linux  process status
+                    type: string
+                  reason:
+                    description: Reason is the reason of the process status
+                    type: string
+                type: object
             type: object
         type: object
     served: true

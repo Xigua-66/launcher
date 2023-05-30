@@ -35,6 +35,9 @@ spec:
           spec:
             description: PlanSpec defines the desired state of Plan
             properties:
+              ansible_plan_auto:
+                description: AnsiblePlanAuto  decide to auto to run ansible plan
+                type: boolean
               cluster_name:
                 description: ClusterName is the cluster name => clusters.cluster.x-k8s.io
                   --------------------------------=> openstackclusters.infrastructure.cluster.x-k8s.io

@@ -30,6 +30,8 @@ const (
 
 	// ClusterNameLabelName is the cluster label name
 	MachineSetClusterLabelName = "cluster.x-k8s.io/cluster-name"
+
+	AnsibleFinalizer = "ansible.ecns.easystack.com"
 )
 
 // PlanSpec defines the desired state of Plan
@@ -94,6 +96,9 @@ type PlanSpec struct {
 
 	//Paused is the flag to pause the plan
 	Paused bool `json:"paused,omitempty"`
+
+	// AnsiblePlanAuto  decide to auto to run ansible plan
+	AnsiblePlanAuto bool `json:"ansible_plan_auto,omitempty"`
 }
 
 // MonitorConfig is the monitor other config

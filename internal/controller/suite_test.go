@@ -17,6 +17,9 @@ limitations under the License.
 package controller
 
 import (
+	"bufio"
+	"fmt"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -41,6 +44,28 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+
+func TestConmand(t *testing.T) {
+	cmd := exec.Command("ansible", "all", "-i", "./inventory.example", "-m", "setup")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		fmt.Println(scanner.Text())
+	}
+	if err := cmd.Wait(); err != nil {
+		fmt.Println("Error:", err)
+		fmt.Println(cmd.Process.Pid)
+		return
+	}
+}
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
