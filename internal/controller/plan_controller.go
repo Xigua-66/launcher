@@ -189,8 +189,15 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		return ctrl.Result{}, err
 	}
 
+	var masterM *ecnsv1.MachineSetReconcile
+
+	for _, set := range plan.Spec.MachineSets {
+		if set.Role == ecnsv1.MasterSetRole {
+			masterM = set
+		}
+	}
 	//TODO  get or create openstackcluster.infrastructure.cluster.x-k8s.io
-	err = syncCreateOpenstackCluster(ctx, r.Client, plan)
+	err = syncCreateOpenstackCluster(ctx, r.Client, plan, masterM)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -315,7 +322,7 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 }
 
 // Todo sync create openstackcluster
-func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan *ecnsv1.Plan) error {
+func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan *ecnsv1.Plan, MSet *ecnsv1.MachineSetReconcile) error {
 	//TODO get openstackcluster by name  If not exist,then create openstackcluster
 	openstackCluster := clusteropenstackapis.OpenStackCluster{}
 	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &openstackCluster)
@@ -334,7 +341,14 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 				openstackCluster.Spec.ExternalNetworkID = ""
 			}
 			openstackCluster.Spec.ManagedSecurityGroups = true
-			openstackCluster.Spec.NodeCIDR = plan.Spec.NodeCIDR
+			if plan.Spec.NetMode == ecnsv1.NetWorkNew {
+				openstackCluster.Spec.NodeCIDR = plan.Spec.NodeCIDR
+			} else {
+				openstackCluster.Spec.NodeCIDR = ""
+				//TODO openstackCluster.Spec.Network.ID should get master role plan.spec.Mach(master set only one infra)
+				openstackCluster.Spec.Network.Name = MSet.Infra[0].Subnets.SubnetNetwork
+				openstackCluster.Spec.Subnet.ID = MSet.Infra[0].Subnets.SubnetUUID
+			}
 			openstackCluster.Spec.IdentityRef.Kind = "Secret"
 			openstackCluster.Spec.IdentityRef.Name = plan.Spec.ClusterName
 			err := client.Create(ctx, &openstackCluster)

@@ -34,6 +34,23 @@ const (
 	AnsibleFinalizer = "ansible.ecns.easystack.com"
 )
 
+type SetRole string
+
+const (
+	MasterSetRole     = "master"
+	WorkSetRole       = "node"
+	PrometheusSetRole = "prometheus"
+	IngressSetRole    = "ingress"
+	LOgSetRole        = "log"
+)
+
+type NetWorkMode string
+
+const (
+	NetWorkExist = "existed"
+	NetWorkNew   = "new"
+)
+
 // PlanSpec defines the desired state of Plan
 type PlanSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -43,7 +60,7 @@ type PlanSpec struct {
 	// one is  use existed network, the other is created new network.
 	// value is "existed" or "new"
 
-	NetMode string `json:"mode"`
+	NetMode NetWorkMode `json:"mode"`
 
 	// K8sVersion is the version of kubernetes => ansible kubernetes tag
 	K8sVersion string `json:"k8sVersion"`
@@ -127,7 +144,7 @@ type MachineSetReconcile struct {
 	// replica is the replica of machine
 	Replica int32 `json:"replica"`
 	// Role is the role of machine
-	Role string `json:"role"`
+	Role SetRole `json:"role"`
 	// Infras is the infras of machine
 	Infra []*Infras `json:"infras,omitempty"`
 	// CloudInit is the cloud init secret of machine,base64 file,can use it to config the machine
