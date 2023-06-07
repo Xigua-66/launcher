@@ -28,8 +28,11 @@ const (
 	// removing it from the apiserver.
 	MachineFinalizer = "plan.ecns.easystack.com"
 
-	// ClusterNameLabelName is the cluster label name
+	// MachineSetClusterLabelName is the cluster label name
 	MachineSetClusterLabelName = "cluster.x-k8s.io/cluster-name"
+
+	// MachineSetLabelName is the machine set label name
+	MachineSetLabelName = "cluster.x-k8s.io/set-name"
 
 	AnsibleFinalizer = "ansible.ecns.easystack.com"
 )

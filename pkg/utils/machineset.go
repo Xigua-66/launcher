@@ -15,6 +15,7 @@ import (
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 const (
@@ -22,7 +23,10 @@ const (
 	Clusterapibootstrapkind = "KubeadmConfigTemplate"
 	Clusteropenstackapi     = "infrastructure.cluster.x-k8s.io/v1alpha6"
 	Clusteropenstackkind    = "OpenStackMachineTemplate"
+	retryIntervalInstanceStatus = 1 * time.Second
+	timeoutInstanceCreate       = 3 * time.Second
 )
+
 
 func ListMachineSets(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (clusterapi.MachineSetList, error) {
 	return clusterapi.MachineSetList{}, nil
@@ -82,8 +86,31 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	if err != nil {
 		return err
 	}
+	//TODO check new machine has created and InfrastructureRef !=nil,or give a reason to user
+	err = PollImmediate(retryIntervalInstanceStatus, timeoutInstanceCreate, func() (bool, error) {
+		var m *clusterapi.MachineSet
+		err := cli.Get(ctx,types.NamespacedName{
+			Namespace: actual.Namespace,
+			Name:      actual.Name,
+		},m)
+		if err != nil {
+			return false, err
+		}
+
+		switch m.Status.FullyLabeledReplicas {
+		case  *actual.Spec.Replicas:
+			return true, nil
+		default:
+			return false, nil
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("check replicas is ready error:%v in get replicas %d",err,actual.Spec.Replicas)
+	}
 	return nil
 }
+
+
 
 // TODO check openstack cluster ready,one openstack cluster for one plan
 func checkOpenstackClusterReady(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (bool, error) {

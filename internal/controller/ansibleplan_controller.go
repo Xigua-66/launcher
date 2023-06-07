@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"time"
 
 	"github.com/shirou/gopsutil/process"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -123,9 +124,9 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 				ansible.Status.ProcessStatus.ProcessPID = nil
 				ansible.Status.ProcessData = ""
 				if err := patchHelper.Patch(ctx, ansible); err != nil {
-					return ctrl.Result{}, err
+					return ctrl.Result{ }, err
 				}
-				return ctrl.Result{}, nil
+				return ctrl.Result{RequeueAfter: 10*time.Second}, nil
 
 			}
 			log.Error(err, "get process status failed but not excepted")
