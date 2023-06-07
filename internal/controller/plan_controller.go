@@ -351,6 +351,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			}
 			openstackCluster.Spec.IdentityRef.Kind = "Secret"
 			openstackCluster.Spec.IdentityRef.Name = plan.Spec.ClusterName
+			openstackCluster.Spec.AllowAllInClusterTraffic = true
 			err := client.Create(ctx, &openstackCluster)
 			if err != nil {
 				return err
