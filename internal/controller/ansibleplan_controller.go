@@ -124,9 +124,9 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 				ansible.Status.ProcessStatus.ProcessPID = nil
 				ansible.Status.ProcessData = ""
 				if err := patchHelper.Patch(ctx, ansible); err != nil {
-					return ctrl.Result{ }, err
+					return ctrl.Result{}, err
 				}
-				return ctrl.Result{RequeueAfter: 10*time.Second}, nil
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 
 			}
 			log.Error(err, "get process status failed but not excepted")

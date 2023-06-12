@@ -1,9 +1,9 @@
 package utils
 
 import (
-"time"
+	"time"
 
-"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -42,4 +42,3 @@ func Poll(interval, timeout time.Duration, condition wait.ConditionFunc) error {
 func PollImmediate(interval, timeout time.Duration, condition wait.ConditionFunc) error {
 	return wait.PollImmediate(interval, timeout, condition)
 }
-

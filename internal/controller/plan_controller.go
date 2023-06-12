@@ -137,7 +137,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	osProviderClient, clientOpts, projectID, err := provider.NewClientFromSecret(ctx, r.Client, req.Namespace, defaultopenstackadminconfsecret, "default")
+	osProviderClient, clientOpts, projectID, err := provider.NewClientFromPlan(ctx, plan)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -219,7 +219,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	// List all machineset for this plan
 	machineSets, err := utils.ListMachineSets(ctx, r.Client, plan)
 	if err != nil {

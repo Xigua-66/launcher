@@ -9,5 +9,33 @@ metadata:
     app.kubernetes.io/created-by: easystack-eks-op
   name: plan-sample
 spec:
+  mode: "existed"
+  k8sVersion: "1.20.14"
+  cluster_name: "test"
+  ssh_key: "test"
+  use_float_ip: false
+  machine_sets:
+    - name: "test"
+      image: test-vm
+      flavor: "ecs.g5.large"
+      replica: 1
+      role: "worker"
+  monitor:
+    pvc_type: "hdd"
+    pvc_cap: "10"
+    auto_clear_days: "7"
+  repo: "hub.easystack.io"
+  cni_type: "flannel"
+  pod_cidr: "10.232.0.0/14"
+  svc_cidr: "10.222.0.0/16"
+  ansible_plan_auto: false
+  user:
+    auth_url: "http://keystone.openstack.svc.cluster.local/v3"
+    token: "gAAAAABkhtajXIwYcyfEujSHg58x0Lhtyh7oQNvb9oid9FwzRj7xWSzLElBSI9U9Xbep9RvDfPif0V0SP-3P66MTtsqZ_6kbCBmPke-03u6VqEcD3jsiS8R8deELVihhHYul3-KHGSWFUiXeKnTEMoSIkvSIlrBUxi5L9WYCDsd5AZGzDPnaONA"
+    region: "RegionOne"
+
+
+
+
 
   # TODO(user): Add fields here

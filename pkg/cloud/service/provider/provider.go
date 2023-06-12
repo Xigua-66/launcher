@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	ecnsv1 "easystack.com/plan/api/v1"
 	"fmt"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -84,6 +85,19 @@ type NewClouds struct {
 	Clouds map[string]NewCloud `yaml:"clouds" json:"clouds"`
 }
 
+// NewClientFromPlan token Auth form plan.spec.User get  Client
+func NewClientFromPlan(ctx context.Context, plan *ecnsv1.Plan) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
+	var cloud NewCloud
+
+	var err error
+	cloud, err = getCloudFromPlan(ctx, plan)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return NewClient(cloud, nil)
+
+}
+
 func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string, cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
 	var cloud NewCloud
 	var caCert []byte
@@ -108,7 +122,7 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("auth option failed for cloud %v: %v", cloud.Cloud, err)
 	}
-	opts.AllowReauth = true
+	opts.AllowReauth = false
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
@@ -223,6 +237,18 @@ func getCloudFromSecret(ctx context.Context, ctrlClient client.Client, secretNam
 	return clouds.Clouds[cloudName], caCert, nil
 }
 
+// getCloudFromPlan extract a Cloud from the given plan.
+func getCloudFromPlan(ctx context.Context, plan *ecnsv1.Plan) (NewCloud, error) {
+	emptyCloud := NewCloud{}
+	emptyCloud.RegionName = plan.Spec.UserInfo.Region
+	emptyCloud.IdentityAPIVersion = "3"
+	emptyCloud.AuthType = "token"
+	emptyCloud.AuthInfo = &NewAuthInfo{}
+	emptyCloud.AuthInfo.AuthURL = plan.Spec.UserInfo.AuthUrl
+	emptyCloud.AuthInfo.Token = plan.Spec.UserInfo.Token
+	return emptyCloud, nil
+}
+
 // getProjectIDFromAuthResult handles different auth mechanisms to retrieve the
 // current project id. Usually we use the Identity v3 Token mechanism that
 // returns the project id in the response to the initial auth request.
@@ -235,7 +261,12 @@ func getProjectIDFromAuthResult(authResult gophercloud.AuthResult) (string, erro
 		}
 
 		return project.ID, nil
-
+	case tokens.GetResult:
+		project, err := authResult.ExtractProject()
+		if err != nil {
+			return "", fmt.Errorf("unable to extract project from CreateResult: %v", err)
+		}
+		return project.ID, nil
 	default:
 		return "", fmt.Errorf("unable to get the project id from auth response with type %T", authResult)
 	}

@@ -82,13 +82,13 @@ type PlanSpec struct {
 
 	// externalNetworkId is the external network id
 	// WHEN use_float_ip is true, we will get a fip from this network
-	ExternalNetworkId string `json:"external_network_id"`
+	ExternalNetworkId string `json:"external_network_id,omitempty"`
 
 	// DNSNameservers is the dns nameservers of subnet which auto created
-	DNSNameservers []string `json:"dns_nameservers"`
+	DNSNameservers []string `json:"dns_nameservers,omitempty"`
 
 	// NodeCIDR is the node cidr of subnet which auto created
-	NodeCIDR string `json:"node_cidr"`
+	NodeCIDR string `json:"node_cidr,omitempty"`
 
 	MachineSets []*MachineSetReconcile `json:"machine_sets"`
 
@@ -102,7 +102,7 @@ type PlanSpec struct {
 	CniType string `json:"cni_type"`
 
 	// CniWorkMode is the cni work mode
-	CniWorkMode string `json:"cni_work_mode"`
+	CniWorkMode string `json:"cni_work_mode,omitempty"`
 
 	// PodCidr is the pod cidr
 	PodCidr string `json:"pod_cidr"`
@@ -119,6 +119,22 @@ type PlanSpec struct {
 
 	// AnsiblePlanAuto  decide to auto to run ansible plan
 	AnsiblePlanAuto bool `json:"ansible_plan_auto,omitempty"`
+
+	// UserInfo is the user of keystone auth
+	UserInfo User `json:"user,omitempty"`
+}
+
+// User is the user of keystone auth
+// include AuthUrl
+// include Token
+// include Region
+type User struct {
+	// AuthUrl is the auth url of keystone
+	AuthUrl string `json:"auth_url"`
+	// Token is the token of keystone,expired time is 6h
+	Token string `json:"token"`
+	// Region is the region of keystone
+	Region string `json:"region"`
 }
 
 // MonitorConfig is the monitor other config

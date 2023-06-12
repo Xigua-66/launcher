@@ -196,17 +196,30 @@ spec:
               use_float_ip:
                 description: UseFloatIP decied to get fips or no
                 type: boolean
+              user:
+                description: UserInfo is the user of keystone auth
+                properties:
+                  auth_url:
+                    description: AuthUrl is the auth url of keystone
+                    type: string
+                  region:
+                    description: Region is the region of keystone
+                    type: string
+                  token:
+                    description: Token is the token of keystone,expired time is 6h
+                    type: string
+                required:
+                - auth_url
+                - region
+                - token
+                type: object
             required:
             - cluster_name
             - cni_type
-            - cni_work_mode
-            - dns_nameservers
-            - external_network_id
             - k8sVersion
             - machine_sets
             - mode
             - monitor
-            - node_cidr
             - pod_cidr
             - repo
             - ssh_key
