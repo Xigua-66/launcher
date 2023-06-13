@@ -4,13 +4,14 @@ import (
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloudinit"
+	"easystack.com/plan/pkg/scope"
 	"encoding/base64"
 	errNew "errors"
 	"fmt"
 	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
-	"github.com/easystack/cluster-api-provider-openstack/pkg/scope"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
@@ -144,7 +145,7 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 		Name:      fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, set.Role, index),
 	}, &openstackTemplate)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// create openstacktemplate
 			openstackTemplate.Name = fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, set.Role, index)
 			openstackTemplate.Namespace = plan.Namespace
@@ -225,7 +226,7 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 		Name:      fmt.Sprintf("%s_cloudinit", plan.Spec.ClusterName),
 	}, &cloudInitSecret)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// create cloud init secret
 			cloudInitSecret.Name = fmt.Sprintf("%s_%s_cloudinit", plan.Spec.ClusterName, set.Name)
 			cloudInitSecret.Namespace = plan.Namespace

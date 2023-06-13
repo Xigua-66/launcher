@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,7 +51,7 @@ func GetOrCreateSSHKeySecret(ctx context.Context, client client.Client, plan *ec
 	err := client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
 		// if err is not found, create secret
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			pub, pri, err := MakeSSHKeyPair()
 			if err != nil {
 				return "", "", err

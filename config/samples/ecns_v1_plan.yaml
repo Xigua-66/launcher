@@ -31,7 +31,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkhtajXIwYcyfEujSHg58x0Lhtyh7oQNvb9oid9FwzRj7xWSzLElBSI9U9Xbep9RvDfPif0V0SP-3P66MTtsqZ_6kbCBmPke-03u6VqEcD3jsiS8R8deELVihhHYul3-KHGSWFUiXeKnTEMoSIkvSIlrBUxi5L9WYCDsd5AZGzDPnaONA"
+    token: "gAAAAABkiBtyGPq-qS5N7KWKiX90fsEUxRsNbvCZPMvTm-EDZ8tkWvB4yvRO2MtvX4JC7TMcXoslaqf5m0SnHPH6XVbPPjmv5DSs4WkefjgJgKB1nKjDYNkdWU7UWlwOU3iJLiWoFJ-CKpN7Lyjnj5Q5w584QzomrpmqNTX-7M2FqQal_NW24DU"
     region: "RegionOne"
 
 

@@ -86,31 +86,31 @@ type NewClouds struct {
 }
 
 // NewClientFromPlan token Auth form plan.spec.User get  Client
-func NewClientFromPlan(ctx context.Context, plan *ecnsv1.Plan) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
+func NewClientFromPlan(ctx context.Context, plan *ecnsv1.Plan) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, string, error) {
 	var cloud NewCloud
 
 	var err error
 	cloud, err = getCloudFromPlan(ctx, plan)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", err
 	}
 	return NewClient(cloud, nil)
 
 }
 
-func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string, cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
+func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string, cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, string, error) {
 	var cloud NewCloud
 	var caCert []byte
 
 	var err error
 	cloud, caCert, err = getCloudFromSecret(ctx, ctrlClient, namespace, secret, cloudname)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", "", err
 	}
 	return NewClient(cloud, caCert)
 }
 
-func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, error) {
+func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, string, error) {
 	clientOpts := new(clientconfig.ClientOpts)
 	if cloud.AuthInfo != nil {
 		clientOpts.AuthInfo = &cloud.AuthInfo.AuthInfo
@@ -120,13 +120,13 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 
 	opts, err := clientconfig.AuthOptions(clientOpts)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("auth option failed for cloud %v: %v", cloud.Cloud, err)
+		return nil, nil, "", "", fmt.Errorf("auth option failed for cloud %v: %v", cloud.Cloud, err)
 	}
 	opts.AllowReauth = false
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("create providerClient err: %v", err)
+		return nil, nil, "", "", fmt.Errorf("create providerClient err: %v", err)
 	}
 
 	config := &tls.Config{
@@ -169,25 +169,35 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 		}
 		err = openstack.AuthenticateV3(provider, authOptsExt, gophercloud.EndpointOpts{})
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("providerClient authentication err: %v", err)
+			return nil, nil, "", "", fmt.Errorf("providerClient authentication err: %v", err)
 		}
 		projectID, err := getProjectIDFromAuthResult(provider.GetAuthResult())
 		if err != nil {
-			return nil, nil, "", err
+			return nil, nil, "", "", err
 		}
-		return provider, clientOpts, projectID, nil
+		userID, err := getUserIDFromAuthResult(provider.GetAuthResult())
+		if err != nil {
+			return nil, nil, "","", err
+		}
+		return provider, clientOpts, projectID,userID, nil
 	}
 	err = openstack.Authenticate(provider, *opts)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("providerClient authentication err: %v", err)
+		return nil, nil, "", "" , fmt.Errorf("providerClient authentication err: %v", err)
 	}
+
 
 	projectID, err := getProjectIDFromAuthResult(provider.GetAuthResult())
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "","", err
 	}
 
-	return provider, clientOpts, projectID, nil
+	userID, err := getUserIDFromAuthResult(provider.GetAuthResult())
+	if err != nil {
+		return nil, nil, "","", err
+	}
+
+	return provider, clientOpts, projectID, userID, nil
 }
 
 type defaultLogger struct{}
@@ -269,5 +279,28 @@ func getProjectIDFromAuthResult(authResult gophercloud.AuthResult) (string, erro
 		return project.ID, nil
 	default:
 		return "", fmt.Errorf("unable to get the project id from auth response with type %T", authResult)
+	}
+}
+
+// getUserIDFromAuthResult handles different auth mechanisms to retrieve the
+// current user id. Usually we use the Identity v3 Token mechanism that
+// returns the user id in the response to the initial auth request.
+func getUserIDFromAuthResult(authResult gophercloud.AuthResult) (string, error) {
+	switch authResult := authResult.(type) {
+	case tokens.CreateResult:
+		user, err := authResult.ExtractUser()
+		if err != nil {
+			return "", fmt.Errorf("unable to extract user from CreateResult: %v", err)
+		}
+
+		return user.ID, nil
+	case tokens.GetResult:
+		user, err := authResult.ExtractUser()
+		if err != nil {
+			return "", fmt.Errorf("unable to extract user from CreateResult: %v", err)
+		}
+		return user.ID, nil
+	default:
+		return "", fmt.Errorf("unable to get the user id from auth response with type %T", authResult)
 	}
 }

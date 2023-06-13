@@ -17,19 +17,21 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloud/service/provider"
+	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
 	errNew "errors"
 	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
-	"github.com/easystack/cluster-api-provider-openstack/pkg/scope"
-	"github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -42,9 +44,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sync"
+	"text/template"
 )
 
-const defaultopenstackadminconfsecret = "openstack-admin-etc"
+const projectAdminEtcSuffix= "admin-etc"
+const Authtmpl = `clouds:
+  {{.ClusterName}}:
+    identity_api_version: 3
+    auth:
+      auth_url: {{.AuthUrl}}
+      application-credential-id: {{.AppCredID}}
+      application-credential-secret: {{.AppCredSecret}}
+    region_name: {{.Region}}
+`
+
+
+type AuthConfig struct {
+	// ClusterName is the name of cluster
+	ClusterName string
+	// AuthUrl is the auth url of keystone
+	AuthUrl string
+	// AppCredID is the application credential id
+	AppCredID string
+	// AppCredSecret is the application credential secret
+	AppCredSecret string
+	// Region is the region of keystone
+	Region string `json:"region"`
+}
 
 // PlanReconciler reconciles a Plan object
 type PlanReconciler struct {
@@ -86,6 +112,7 @@ type PlanMachineSetBind struct {
 func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	// Fetch the OpenStackMachine instance.
+
 
 	plan := &ecnsv1.Plan{}
 	err := r.Client.Get(ctx, req.NamespacedName, plan)
@@ -137,7 +164,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	osProviderClient, clientOpts, projectID, err := provider.NewClientFromPlan(ctx, plan)
+	osProviderClient, clientOpts, projectID,userID, err := provider.NewClientFromPlan(ctx, plan)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -145,6 +172,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		ProviderClient:     osProviderClient,
 		ProviderClientOpts: clientOpts,
 		ProjectID:          projectID,
+		UserID:             userID,
 		Logger:             log,
 	}
 
@@ -166,14 +194,12 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 	scope.Logger.Info("Reconciling plan openstack resource")
 	// get gopher cloud client
-	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas changed
+	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
 
-	//create trust user
-	// TODO get cluster uuid
-	clusterUUID := ""
-	// TODO get user id
-	userID := ""
-	err := syncTrustUser(ctx, scope, clusterUUID, userID)
+
+
+	// get or create app credential
+	err := syncAppCre(ctx, scope, r.Client, plan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -198,12 +224,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 	//TODO  get or create openstackcluster.infrastructure.cluster.x-k8s.io
 	err = syncCreateOpenstackCluster(ctx, r.Client, plan, masterM)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// TODO get or create openstack auth config secret
-	err = syncOpenstackAuthConfig(ctx, r.Client, plan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -258,42 +278,69 @@ func (r *PlanReconciler) reconcileDelete(ctx context.Context, scope *scope.Scope
 	return ctrl.Result{}, nil
 }
 
-// TODO sync trust user
-func syncTrustUser(ctx context.Context, scope *scope.Scope, clusterUUID string, userID string) error {
-	// TODO get trust cm by name  If not exist,then create trust user
+// TODO sync app cre
+func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan) error {
+	// TODO get openstack application credential secret by name  If not exist,then create openstack application credential and its secret.
 
-	IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
-		Region: scope.ProviderClientOpts.RegionName,
-	})
+	secretName := fmt.Sprintf("%s-%s",plan.Spec.ClusterName,projectAdminEtcSuffix)
+	secret := &corev1.Secret{}
+	err := cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
-		return err
-	}
-	_, err = utils.CreateTrustUser(ctx, IdentityClient, scope.ProjectID, clusterUUID, userID)
+		if apierrors.IsNotFound(err) {
+			// create openstack application credential
+			IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
+				Region: scope.ProviderClientOpts.RegionName,
+			})
+			if err != nil {
+				return err
+			}
+			appkey,appsecret, err := utils.CreateAppCre(ctx,scope, IdentityClient, secretName)
+			if err != nil {
+				return  err
+			}
+			var auth AuthConfig= AuthConfig{
+				ClusterName: plan.Spec.ClusterName,
+				AuthUrl: plan.Spec.UserInfo.AuthUrl,
+				AppCredID: appkey,
+				AppCredSecret: appsecret,
+				Region: plan.Spec.UserInfo.Region,
+			}
+			var secretData = make(map[string][]byte)
 
-	return nil
-}
+			// Create a template object and parse the template string
+			t, err := template.New("auth").Parse(Authtmpl)
+			if err != nil {
+				return err
+			}
+			var buf bytes.Buffer
+			// Execute the template and write the output to the file
+			err = t.Execute(&buf, auth)
+			if err != nil {
+				return err
+			}
+			// base64 encode the buffer contents and return as a string
+			secretData["clouds.yaml"] = buf.Bytes()
+			secretData["cacert"] = []byte(fmt.Sprintf("\n"))
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: plan.Namespace,
+				},
+				Data: secretData,
+			}
+			err = cli.Create(ctx, secret)
+			if err != nil {
+				return err
+			}
+			return nil
 
-// TODO sync openstack auth config
-func syncOpenstackAuthConfig(ctx context.Context, client client.Client, plan *ecnsv1.Plan) error {
-	// TODO get openstack auth config secret by name  If not exist,then create openstack auth config and its secret.
-	// ...
-	trust, err := utils.GetTrustUser(ctx, client, plan)
-	if err != nil {
-		return err
-	}
-	//check openstackcluster is ready by name ,if true, get or create openstack auth config
-	ready, err := utils.CheckOpenstackClusterReady(ctx, client, plan)
-	if err != nil {
-		return err
-	}
-	if ready {
-		err = utils.GetOrCreateOpenstackAuthConfig(ctx, client, plan, trust)
-		if err != nil {
+		} else {
 			return err
 		}
 	}
 	return nil
 }
+
 
 // TODO sync create cluster
 func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.Plan) error {
@@ -301,7 +348,7 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 	cluster := clusterapi.Cluster{}
 	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// TODO create cluster resource
 			cluster.Name = plan.Spec.ClusterName
 			cluster.Namespace = plan.Namespace
@@ -326,7 +373,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 	openstackCluster := clusteropenstackapis.OpenStackCluster{}
 	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &openstackCluster)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// TODO create openstackcluster resource
 			openstackCluster.Name = plan.Spec.ClusterName
 			openstackCluster.Namespace = plan.Namespace
@@ -369,7 +416,7 @@ func syncCreateKubeadmConfig(ctx context.Context, client client.Client, plan *ec
 	kubeadmconfigte := &clusterkubeadm.KubeadmConfigTemplate{}
 	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, kubeadmconfigte)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			//TODO create kubeadmconfig resource
 			kubeadmconfigte.Name = plan.Spec.ClusterName
 			kubeadmconfigte.Namespace = plan.Namespace
