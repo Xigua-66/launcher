@@ -10,19 +10,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func CreateAppCre(ctx context.Context,scope *scope.Scope, identityClient *gophercloud.ServiceClient,secretName string) (string,string, error) {
+func CreateAppCre(ctx context.Context, scope *scope.Scope, identityClient *gophercloud.ServiceClient, secretName string) (string, string, error) {
 	appOpts := applicationcredentials.CreateOpts{
 		Name:         secretName,
 		Description:  "eks used app cre,dont delete",
 		Unrestricted: false,
 	}
-	appCre, err := applicationcredentials.Create(identityClient,scope.UserID, appOpts).Extract()
+	appCre, err := applicationcredentials.Create(identityClient, scope.UserID, appOpts).Extract()
 	if err != nil {
 		return "", "", err
 	}
 
-
-	return appCre.ID,appCre.Secret, nil
+	return appCre.ID, appCre.Secret, nil
 
 }
 

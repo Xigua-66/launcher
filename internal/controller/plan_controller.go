@@ -47,17 +47,16 @@ import (
 	"text/template"
 )
 
-const projectAdminEtcSuffix= "admin-etc"
+const ProjectAdminEtcSuffix = "admin-etc"
 const Authtmpl = `clouds:
   {{.ClusterName}}:
     identity_api_version: 3
     auth:
       auth_url: {{.AuthUrl}}
-      application-credential-id: {{.AppCredID}}
-      application-credential-secret: {{.AppCredSecret}}
+      application_credential_id: {{.AppCredID}}
+      application_credential_secret: {{.AppCredSecret}}
     region_name: {{.Region}}
 `
-
 
 type AuthConfig struct {
 	// ClusterName is the name of cluster
@@ -113,7 +112,6 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	log := log.FromContext(ctx)
 	// Fetch the OpenStackMachine instance.
 
-
 	plan := &ecnsv1.Plan{}
 	err := r.Client.Get(ctx, req.NamespacedName, plan)
 	if err != nil {
@@ -164,7 +162,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	osProviderClient, clientOpts, projectID,userID, err := provider.NewClientFromPlan(ctx, plan)
+	osProviderClient, clientOpts, projectID, userID, err := provider.NewClientFromPlan(ctx, plan)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -195,8 +193,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	scope.Logger.Info("Reconciling plan openstack resource")
 	// get gopher cloud client
 	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
-
-
 
 	// get or create app credential
 	err := syncAppCre(ctx, scope, r.Client, plan)
@@ -282,7 +278,7 @@ func (r *PlanReconciler) reconcileDelete(ctx context.Context, scope *scope.Scope
 func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan) error {
 	// TODO get openstack application credential secret by name  If not exist,then create openstack application credential and its secret.
 
-	secretName := fmt.Sprintf("%s-%s",plan.Spec.ClusterName,projectAdminEtcSuffix)
+	secretName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
 	secret := &corev1.Secret{}
 	err := cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
@@ -294,16 +290,16 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 			if err != nil {
 				return err
 			}
-			appkey,appsecret, err := utils.CreateAppCre(ctx,scope, IdentityClient, secretName)
+			appkey, appsecret, err := utils.CreateAppCre(ctx, scope, IdentityClient, secretName)
 			if err != nil {
-				return  err
+				return err
 			}
-			var auth AuthConfig= AuthConfig{
-				ClusterName: plan.Spec.ClusterName,
-				AuthUrl: plan.Spec.UserInfo.AuthUrl,
-				AppCredID: appkey,
+			var auth AuthConfig = AuthConfig{
+				ClusterName:   plan.Spec.ClusterName,
+				AuthUrl:       plan.Spec.UserInfo.AuthUrl,
+				AppCredID:     appkey,
 				AppCredSecret: appsecret,
-				Region: plan.Spec.UserInfo.Region,
+				Region:        plan.Spec.UserInfo.Region,
 			}
 			var secretData = make(map[string][]byte)
 
@@ -340,7 +336,6 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 	}
 	return nil
 }
-
 
 // TODO sync create cluster
 func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.Plan) error {

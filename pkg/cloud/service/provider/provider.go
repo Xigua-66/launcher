@@ -97,6 +97,9 @@ func NewClientFromPlan(ctx context.Context, plan *ecnsv1.Plan) (*gophercloud.Pro
 	return NewClient(cloud, nil)
 
 }
+func GetCloudFromSecret(ctx context.Context, ctrlClient client.Client, secretNamespace string, secretName string, cloudName string) (NewCloud, []byte, error) {
+	return getCloudFromSecret(ctx, ctrlClient, secretNamespace, secretName, cloudName)
+}
 
 func NewClientFromSecret(ctx context.Context, ctrlClient client.Client, namespace string, secret string, cloudname string) (*gophercloud.ProviderClient, *clientconfig.ClientOpts, string, string, error) {
 	var cloud NewCloud
@@ -177,24 +180,23 @@ func NewClient(cloud NewCloud, caCert []byte) (*gophercloud.ProviderClient, *cli
 		}
 		userID, err := getUserIDFromAuthResult(provider.GetAuthResult())
 		if err != nil {
-			return nil, nil, "","", err
+			return nil, nil, "", "", err
 		}
-		return provider, clientOpts, projectID,userID, nil
+		return provider, clientOpts, projectID, userID, nil
 	}
 	err = openstack.Authenticate(provider, *opts)
 	if err != nil {
-		return nil, nil, "", "" , fmt.Errorf("providerClient authentication err: %v", err)
+		return nil, nil, "", "", fmt.Errorf("providerClient authentication err: %v", err)
 	}
-
 
 	projectID, err := getProjectIDFromAuthResult(provider.GetAuthResult())
 	if err != nil {
-		return nil, nil, "","", err
+		return nil, nil, "", "", err
 	}
 
 	userID, err := getUserIDFromAuthResult(provider.GetAuthResult())
 	if err != nil {
-		return nil, nil, "","", err
+		return nil, nil, "", "", err
 	}
 
 	return provider, clientOpts, projectID, userID, nil

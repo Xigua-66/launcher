@@ -85,6 +85,26 @@ func generate(kind string, tpl string, data interface{}) ([]byte, error) {
 		return nil, errors.Wrap(err, "failed to parse commands template")
 	}
 
+	if _, err := tm.Parse(ntpTemplate); err != nil {
+		return nil, errors.Wrap(err, "failed to parse ntp template")
+	}
+
+	if _, err := tm.Parse(usersTemplate); err != nil {
+		return nil, errors.Wrap(err, "failed to parse users template")
+	}
+
+	if _, err := tm.Parse(diskSetupTemplate); err != nil {
+		return nil, errors.Wrap(err, "failed to parse disk setup template")
+	}
+
+	if _, err := tm.Parse(fsSetupTemplate); err != nil {
+		return nil, errors.Wrap(err, "failed to parse fs setup template")
+	}
+
+	if _, err := tm.Parse(mountsTemplate); err != nil {
+		return nil, errors.Wrap(err, "failed to parse mounts template")
+	}
+
 	t, err := tm.Parse(tpl)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse %s template", kind)

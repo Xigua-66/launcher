@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
+	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/cloudinit"
 	"easystack.com/plan/pkg/scope"
 	"encoding/base64"
@@ -16,6 +18,7 @@ import (
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"text/template"
 	"time"
 )
 
@@ -24,9 +27,39 @@ const (
 	Clusterapibootstrapkind     = "KubeadmConfigTemplate"
 	Clusteropenstackapi         = "infrastructure.cluster.x-k8s.io/v1alpha6"
 	Clusteropenstackkind        = "OpenStackMachineTemplate"
+	CloudInitSecretSuffix       = "-cloudinit"
 	retryIntervalInstanceStatus = 1 * time.Second
 	timeoutInstanceCreate       = 3 * time.Second
+
+	// OpenstackGlobalAuthTpl go template
+	OpenstackGlobalAuthTpl = `[Global]
+auth-url={{.AuthInfo.AuthURL}}
+application_credential_id="{{.AuthInfo.ApplicationCredentialID}}"
+application_credential_secret="{{.AuthInfo.ApplicationCredentialSecret}}"
+region="{{.RegionName}}"
+[BlockStorage]
+bs-version=v2
+ignore-volume-az=True
+`
 )
+
+type NewPartition struct {
+	// Device is the name of the device.
+	Device string `json:"device"`
+	// Layout specifies the device layout.
+	// If it is true, a single partition will be created for the entire device.
+	// When layout is false, it means don't partition or ignore existing partitioning.
+	Layout []string `json:"layout"`
+	// Overwrite describes whether to skip checks and create the partition if a partition or filesystem is found on the device.
+	// Use with caution. Default is 'false'.
+	// +optional
+	Overwrite *bool `json:"overwrite,omitempty"`
+	// TableType specifies the tupe of partition table. The following are supported:
+	// 'mbr': default and setups a MS-DOS partition table
+	// 'gpt': setups a GPT partition table
+	// +optional
+	TableType *string `json:"tableType,omitempty"`
+}
 
 func ListMachineSets(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (clusterapi.MachineSetList, error) {
 	return clusterapi.MachineSetList{}, nil
@@ -216,63 +249,136 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 	return nil
 }
 
+func GetOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan, set *ecnsv1.MachineSetReconcile) error {
+	return getOrCreateCloudInitSecret(ctx, scope, client, plan, set)
+}
+
 // TODO get or create cloud init secret,one cloud init secret for one machineset
 func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan, set *ecnsv1.MachineSetReconcile) error {
 	// get cloud init secret by name ,if not exist,create it
 	var cloudInitSecret corev1.Secret
-	var base64 base64.Encoding
+	secretName := fmt.Sprintf("%s-%s%s", plan.Spec.ClusterName, set.Name, CloudInitSecretSuffix)
 	err := client.Get(ctx, types.NamespacedName{
 		Namespace: plan.Namespace,
-		Name:      fmt.Sprintf("%s_cloudinit", plan.Spec.ClusterName),
+		Name:      secretName,
 	}, &cloudInitSecret)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// create cloud init secret
-			cloudInitSecret.Name = fmt.Sprintf("%s_%s_cloudinit", plan.Spec.ClusterName, set.Name)
+			cloudInitSecret.Name = secretName
 			cloudInitSecret.Namespace = plan.Namespace
 			cloudInitSecret.Data = make(map[string][]byte)
 			// TODO add cloud init
 			// 1. add ssh key
-			// 2. add set cloud init
-			//  get sshkey by name
+			// 2. add openstack app cre secret
+			// 3. add init disk script
+			// 4. add set cloud init
+
+			// 1. add asnible  ssh key
 			var sshKey corev1.Secret
 			err = client.Get(ctx, types.NamespacedName{
 				Namespace: plan.Namespace,
-				Name:      plan.Name + "-default-ssh",
+				Name:      fmt.Sprintf("%s%s", plan.Name, SSHSecretSuffix),
 			}, &sshKey)
+			if err != nil {
+				return err
+			}
 
 			var eksInput cloudinit.EKSInput
+			sshBase64 := base64.StdEncoding.EncodeToString(sshKey.Data["public_key"])
 			eksInput.WriteFiles = append(eksInput.WriteFiles, bootstrapv1.File{
 				Path:        "/root/.ssh/authorized_keys",
 				Owner:       "root:root",
-				Permissions: "0600",
+				Permissions: "0644",
 				Encoding:    bootstrapv1.Base64,
 				Append:      true,
-				Content:     base64.EncodeToString(sshKey.Data["public_key"]),
+				Content:     sshBase64,
 			})
+			// 2. add openstack app cre secret
+			var openstackAppCreSecret corev1.Secret
+			err = client.Get(ctx, types.NamespacedName{
+				Namespace: plan.Namespace,
+				Name:      fmt.Sprintf("%s-%s", plan.Spec.ClusterName, "admin-etc"),
+			}, &openstackAppCreSecret)
+			if err != nil {
+				return err
+			}
+			cloud, _, err := provider.GetCloudFromSecret(ctx, client, plan.Namespace, fmt.Sprintf("%s-%s", plan.Spec.ClusterName, "admin-etc"), plan.Spec.ClusterName)
+			if err != nil {
+				return err
+			}
+			fmt.Println(cloud.AuthInfo.AuthURL)
+			fmt.Println(cloud.AuthInfo.ApplicationCredentialID)
+			OpenstackTmpl, err := template.New("openstack").Parse(OpenstackGlobalAuthTpl)
+			if err != nil {
+				return err
+			}
+			var authBuf bytes.Buffer
+			err = OpenstackTmpl.Execute(&authBuf, cloud)
+			if err != nil {
+				return err
+			}
+
+			authBase64 := base64.StdEncoding.EncodeToString(authBuf.Bytes())
+			eksInput.WriteFiles = append(eksInput.WriteFiles, bootstrapv1.File{
+				Path:        "/etc/kubernetes/cloud-config",
+				Owner:       "root:root",
+				Permissions: "0644",
+				Encoding:    bootstrapv1.Base64,
+				Append:      false,
+				Content:     authBase64,
+			})
+
+			// 3. add init disk script
+
+			var tableType string = "gpt"
+			// all node  need init /kubernetes/ path,https://easystack.atlassian.net/wiki/spaces/delivery/pages/1929052161/EKS+-k8s-v1.26#6.5-%E7%AE%A1%E7%90%86%E8%8A%82%E7%82%B9%E6%8C%82%E8%BD%BD%E5%8D%B7https://easystack.atlassian.net/wiki/spaces/delivery/pages/1929052161/EKS+-k8s-v1.26#6.5-%E7%AE%A1%E7%90%86%E8%8A%82%E7%82%B9%E6%8C%82%E8%BD%BD%E5%8D%B7https://easystack.atlassian.net/wiki/spaces/delivery/pages/1929052161/EKS+-k8s-v1.26#6.5-%E7%AE%A1%E7%90%86%E8%8A%82%E7%82%B9%E6%8C%82%E8%BD%BD%E5%8D%B7https://easystack.atlassian.net/wiki/spaces/delivery/pages/1929052161/EKS+-k8s-v1.26#6.5-%E7%AE%A1%E7%90%86%E8%8A%82%E7%82%B9%E6%8C%82%E8%BD%BD%E5%8D%B7
+			eksInput.DiskSetup = &bootstrapv1.DiskSetup{
+				Partitions: []bootstrapv1.Partition{
+					{
+						Device:    "/dev/vdb",
+						TableType: &tableType,
+						Layout:    true,
+					},
+				},
+				Filesystems: []bootstrapv1.Filesystem{
+					{
+						Device:     "/dev/vdb",
+						Filesystem: "xfs",
+						Label:      "kubernetes_disk",
+					},
+				},
+			}
+			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"kubernetes_disk", "/kubernetes/"})
+			// init data disk
+			eksInput.DiskSetup = &bootstrapv1.DiskSetup{
+				Partitions: []bootstrapv1.Partition{
+					{
+						Device:    "/dev/vdc",
+						TableType: &tableType,
+						Layout:    true,
+					},
+				},
+				Filesystems: []bootstrapv1.Filesystem{
+					{
+						Device:     "/dev/vdc",
+						Filesystem: "xfs",
+						Label:      "data_disk",
+					},
+				},
+			}
+			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"etcd_disk", "data_disk"})
+
 			cloudInitData, err := cloudinit.NewEKS(&eksInput)
 			if err != nil {
 				return err
 			}
 
 			if set.CloudInit != "" {
-				//base64 old cloud init
-				configOld, err := base64.DecodeString(string(cloudInitData))
-				if err != nil {
-					scope.Logger.Error(err, "sshkey cloud init base64 decode error")
-					return err
-				}
-				//base64 set cloud init
-				configAppend, err := base64.DecodeString(set.CloudInit)
-				if err != nil {
-					scope.Logger.Error(err, "set cloud init base64 decode error")
-					return err
-				}
-				confignew := fmt.Sprintf("%s\n%s ", configOld, configAppend)
-				//Encode new cloud init
-				cloudInitData = []byte(base64.EncodeToString([]byte(confignew)))
+
+				cloudInitData = []byte(fmt.Sprintf("%s\n%s ", string(cloudInitData), set.CloudInit))
 			}
-			cloudInitSecret.Data["format"] = []byte(base64.EncodeToString([]byte("cloud-config")))
+			cloudInitSecret.Data["format"] = []byte(base64.StdEncoding.EncodeToString([]byte("cloud-config")))
 			cloudInitSecret.Data["value"] = cloudInitData
 			//TODO create cloud init secret resource
 			err = client.Create(ctx, &cloudInitSecret)

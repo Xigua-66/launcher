@@ -47,8 +47,8 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 
 func TestConmand(t *testing.T) {
-	cmd := exec.Command("ls", "-l", "-a")
-	//cmd := exec.Command("ansible","all", "-i", "./inventory.example","-m", "setup")
+	//cmd := exec.Command("ls", "-l", "-a")
+	cmd := exec.Command("ansible", "all", "-i", "./inventory.example", "-m", "setup")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println("Error:", err)

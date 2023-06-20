@@ -18,6 +18,8 @@ import (
 	"strings"
 )
 
+const SSHSecretSuffix = "-default-ssh"
+
 func MakeSSHKeyPair() (string, string, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
@@ -45,7 +47,7 @@ func MakeSSHKeyPair() (string, string, error) {
 }
 
 func GetOrCreateSSHKeySecret(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (string, string, error) {
-	secretName := plan.Name + "-default-ssh"
+	secretName := fmt.Sprintf("%s%s", plan.Name, SSHSecretSuffix)
 	//get secret by name secretName
 	secret := &corev1.Secret{}
 	err := client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
@@ -61,6 +63,7 @@ func GetOrCreateSSHKeySecret(ctx context.Context, client client.Client, plan *ec
 				"public_key":  []byte(pub),
 				"private_key": []byte(pri),
 			}
+			secret.Name = secretName
 			err = client.Create(ctx, secret)
 			if err != nil {
 				return pub, pri, err
