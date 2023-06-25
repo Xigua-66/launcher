@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -307,8 +308,6 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 			if err != nil {
 				return err
 			}
-			fmt.Println(cloud.AuthInfo.AuthURL)
-			fmt.Println(cloud.AuthInfo.ApplicationCredentialID)
 			OpenstackTmpl, err := template.New("openstack").Parse(OpenstackGlobalAuthTpl)
 			if err != nil {
 				return err
@@ -339,12 +338,15 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 						Device:    "/dev/vdb",
 						TableType: &tableType,
 						Layout:    true,
+						Overwrite: pointer.Bool(false),
 					},
 				},
 				Filesystems: []bootstrapv1.Filesystem{
 					{
 						Device:     "/dev/vdb",
 						Filesystem: "xfs",
+						Partition: pointer.String("auto"),
+						Overwrite: pointer.Bool(false),
 						Label:      "kubernetes_disk",
 					},
 				},
@@ -357,17 +359,23 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 						Device:    "/dev/vdc",
 						TableType: &tableType,
 						Layout:    true,
+						Overwrite: pointer.Bool(false),
 					},
 				},
 				Filesystems: []bootstrapv1.Filesystem{
 					{
 						Device:     "/dev/vdc",
 						Filesystem: "xfs",
+						Overwrite: pointer.Bool(false),
+						Partition: pointer.String("auto"),
 						Label:      "data_disk",
 					},
 				},
 			}
 			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"etcd_disk", "data_disk"})
+
+			// add sleep 10s command,make sure disk init success
+			eksInput.PreKubeadmCommands = append(eksInput.PreKubeadmCommands, "sh -c 'sleep 10'")
 
 			cloudInitData, err := cloudinit.NewEKS(&eksInput)
 			if err != nil {

@@ -18,26 +18,16 @@ package cloudinit
 
 const (
 	nodeCloudInit = `{{.Header}}
-{{template "files" .WriteFiles}}
--   path: /run/kubeadm/kubeadm-join-config.yaml
-    owner: root:root
-    permissions: '0640'
-    content: |
-      ---
-{{.JoinConfiguration | Indent 6}}
--   path: /run/cluster-api/placeholder
-    owner: root:root
-    permissions: '0640'
-    content: "This placeholder file is used to create the /run/cluster-api sub directory in a way that is compatible with both Linux and Windows (mkdir -p /run/cluster-api does not work with Windows)"
+{{- template "disk_setup" .DiskSetup}}
+{{- template "fs_setup" .DiskSetup}}
 runcmd:
 {{- template "commands" .PreKubeadmCommands }}
   - {{ .KubeadmCommand }} && {{ .SentinelFileCommand }}
 {{- template "commands" .PostKubeadmCommands }}
+{{- template "mounts" .Mounts}}
+{{template "files" .WriteFiles}}
 {{- template "ntp" .NTP }}
 {{- template "users" .Users }}
-{{- template "disk_setup" .DiskSetup}}
-{{- template "fs_setup" .DiskSetup}}
-{{- template "mounts" .Mounts}}
 `
 )
 
