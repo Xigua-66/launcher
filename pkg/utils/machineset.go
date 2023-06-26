@@ -340,21 +340,6 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 						Layout:    true,
 						Overwrite: pointer.Bool(false),
 					},
-				},
-				Filesystems: []bootstrapv1.Filesystem{
-					{
-						Device:     "/dev/vdb",
-						Filesystem: "xfs",
-						Partition: pointer.String("auto"),
-						Overwrite: pointer.Bool(false),
-						Label:      "kubernetes_disk",
-					},
-				},
-			}
-			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"kubernetes_disk", "/kubernetes/"})
-			// init data disk
-			eksInput.DiskSetup = &bootstrapv1.DiskSetup{
-				Partitions: []bootstrapv1.Partition{
 					{
 						Device:    "/dev/vdc",
 						TableType: &tableType,
@@ -364,15 +349,23 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 				},
 				Filesystems: []bootstrapv1.Filesystem{
 					{
+						Device:     "/dev/vdb",
+						Filesystem: "xfs",
+						Partition: pointer.String("auto"),
+						Overwrite: pointer.Bool(false),
+						Label:      "kubernetes",
+					},
+					{
 						Device:     "/dev/vdc",
 						Filesystem: "xfs",
 						Overwrite: pointer.Bool(false),
 						Partition: pointer.String("auto"),
-						Label:      "data_disk",
+						Label:      "data",
 					},
 				},
 			}
-			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"etcd_disk", "data_disk"})
+			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"/dev/vdb1", "/kubernetes"})
+			eksInput.Mounts = append(eksInput.Mounts, bootstrapv1.MountPoints{"/dev/vdc1", "/data"})
 
 			// add sleep 10s command,make sure disk init success
 			eksInput.PreKubeadmCommands = append(eksInput.PreKubeadmCommands, "sh -c 'sleep 10'")

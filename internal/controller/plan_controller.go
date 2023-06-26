@@ -372,8 +372,9 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			// TODO create openstackcluster resource
 			openstackCluster.Name = plan.Spec.ClusterName
 			openstackCluster.Namespace = plan.Namespace
-			openstackCluster.Spec.DisableAPIServerFloatingIP = false
+			openstackCluster.Spec.DisableAPIServerFloatingIP = true
 			openstackCluster.Spec.APIServerLoadBalancer.Enabled = false
+			openstackCluster.Spec.APIServerFixedIP = "0.0.0.0"
 			openstackCluster.Spec.CloudName = plan.Spec.ClusterName
 			openstackCluster.Spec.DNSNameservers = plan.Spec.DNSNameservers
 			if plan.Spec.UseFloatIP == true {

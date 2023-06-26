@@ -18,15 +18,15 @@ limitations under the License.
 
 const (
 	EKS = `{{.Header}}
-{{template "files" .WriteFiles}}
+{{- template "disk_setup" .DiskSetup}}
+{{- template "fs_setup" .DiskSetup}}
 runcmd:
 {{- template "commands" .PreKubeadmCommands }}
 {{- template "commands" .PostKubeadmCommands }}
+{{- template "mounts" .Mounts}}
+{{template "files" .WriteFiles}}
 {{- template "ntp" .NTP }}
 {{- template "users" .Users }}
-{{- template "disk_setup" .DiskSetup}}
-{{- template "fs_setup" .DiskSetup}}
-{{- template "mounts" .Mounts}}
 `
 )
 
