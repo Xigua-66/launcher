@@ -29,6 +29,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,7 +109,7 @@ type PlanMachineSetBind struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
-func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result,reterr error) {
 	log := log.FromContext(ctx)
 	// Fetch the OpenStackMachine instance.
 
@@ -161,6 +162,13 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	defer func() {
+		if err := patchHelper.Patch(ctx, plan); err != nil {
+			if reterr == nil {
+				reterr = errors.Wrapf(err, "error patching OpenStackCluster %s/%s", plan.Namespace, plan.Name)
+			}
+		}
+	}()
 
 	osProviderClient, clientOpts, projectID, userID, err := provider.NewClientFromPlan(ctx, plan)
 	if err != nil {
@@ -235,6 +243,9 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	plan.Status.ServerGroupID.MasterServerGroupID = mastergroupID
+	plan.Status.ServerGroupID.WorkerServerGroupID = nodegroupID
 	// List all machineset for this plan
 	machineSets, err := utils.ListMachineSets(ctx, r.Client, plan)
 	if err != nil {
@@ -255,11 +266,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 	// Reconcile every machineset replicas
 	err = r.syncMachine(ctx, scope, r.Client, plan, mastergroupID, nodegroupID)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	// update plan status
-	err = r.updateStatus(ctx, plan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -416,6 +422,7 @@ func syncCreateKubeadmConfig(ctx context.Context, client client.Client, plan *ec
 			//TODO create kubeadmconfig resource
 			kubeadmconfigte.Name = plan.Spec.ClusterName
 			kubeadmconfigte.Namespace = plan.Namespace
+			kubeadmconfigte.Spec.Template.Spec.Format = "cloud-config"
 			err := client.Create(ctx, kubeadmconfigte)
 			if err != nil {
 				return err
@@ -448,8 +455,9 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 	if err != nil {
 		return "", "", err
 	}
-	//TODO check server group is exist or not create server group
-
+	if plan.Status.ServerGroupID.MasterServerGroupID !="" && plan.Status.ServerGroupID.WorkerServerGroupID != ""{
+		return  plan.Status.ServerGroupID.MasterServerGroupID,plan.Status.ServerGroupID.WorkerServerGroupID,nil
+	}
 	sg_master, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "master"),
 		Policies: []string{"anti-affinity"},
@@ -549,10 +557,6 @@ loop:
 
 }
 
-// TODO update plan status
-func (r *PlanReconciler) updateStatus(ctx context.Context, plan *ecnsv1.Plan) error {
-	return nil
-}
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
