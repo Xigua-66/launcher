@@ -8,18 +8,61 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: easystack-eks-op
   name: plan-sample
+  namespace: test-capo
 spec:
-  mode: "existed"
+  mode: "new"
   k8sVersion: "1.20.14"
-  cluster_name: "test"
-  ssh_key: "test"
+  cluster_name: "test1"
+  ssh_key: "jian"
   use_float_ip: false
+  node_cidr: "10.6.0.0/24"
   machine_sets:
-    - name: "test"
-      image: test-vm
-      flavor: "ecs.g5.large"
+    - name: "test-master"
+      image: "centos-qga"
+      flavor: "2C-4G"
       replica: 1
-      role: "worker"
+      role: "master"
+      infras:
+        - availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 20
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+
+    - name: "test"
+      image: "centos-qga"
+      flavor: "2C-4G"
+      replica: 2
+      role: "node"
+      infras:
+        - availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 20
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+        - availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 20
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
   monitor:
     pvc_type: "hdd"
     pvc_cap: "10"
@@ -31,7 +74,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkiBtyGPq-qS5N7KWKiX90fsEUxRsNbvCZPMvTm-EDZ8tkWvB4yvRO2MtvX4JC7TMcXoslaqf5m0SnHPH6XVbPPjmv5DSs4WkefjgJgKB1nKjDYNkdWU7UWlwOU3iJLiWoFJ-CKpN7Lyjnj5Q5w584QzomrpmqNTX-7M2FqQal_NW24DU"
+    token: "gAAAAABkpS2RG2mUsxo7fqKYVQpH2S_MwhS63OOMefx37gtcCqw9p1TOBzmLlL5zlROHMe-O3vrDy_uS882EG1nqU0U9JsXKDtsImHR4ONr6lc3YQMvcC33BtTzJM9gFEyH3wi3HEbs3gPAdobAITOcXpZpmCCv09Ti6skantZV0tKNVrk50zD4"
     region: "RegionOne"
 
 

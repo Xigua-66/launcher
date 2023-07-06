@@ -8,6 +8,7 @@ import (
 	"easystack.com/plan/pkg/cloudinit"
 	"easystack.com/plan/pkg/scope"
 	"encoding/base64"
+	"encoding/json"
 	errNew "errors"
 	"fmt"
 	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
@@ -15,10 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"k8s.io/utils/pointer"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"text/template"
 	"time"
 )
@@ -62,8 +65,11 @@ type NewPartition struct {
 	TableType *string `json:"tableType,omitempty"`
 }
 
-func ListMachineSets(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (clusterapi.MachineSetList, error) {
-	return clusterapi.MachineSetList{}, nil
+func ListMachineSets(ctx context.Context, cli client.Client, plan *ecnsv1.Plan) (clusterapi.MachineSetList, error) {
+	var msetList clusterapi.MachineSetList
+	labels := map[string]string{ecnsv1.MachineSetClusterLabelName: plan.Spec.ClusterName}
+	cli.List(ctx, &msetList, client.InNamespace(plan.Namespace), client.MatchingLabels(labels))
+	return msetList, nil
 }
 
 // CreateMachineSet when create machineset, we need to finish the following things:
@@ -96,7 +102,7 @@ func CreateMachineSet(ctx context.Context, scope *scope.Scope, client client.Cli
 }
 
 // AddReplicas for machineset add replicas
-func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, target *ecnsv1.MachineSetReconcile, actual clusterapi.MachineSet, plan *ecnsv1.Plan, index int, mastergroup string, nodegroup string) error {
+func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, target *ecnsv1.MachineSetReconcile, setName string, plan *ecnsv1.Plan, index int, mastergroup string, nodegroup string) error {
 	err := getOrCreateOpenstackTemplate(ctx, scope, cli, plan, target, index, mastergroup, nodegroup)
 	if err != nil {
 		return err
@@ -111,28 +117,36 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 		return errNew.New("index out of range infra")
 	}
 	infra := target.Infra[index]
+
+	var  actual clusterapi.MachineSet
+	err = cli.Get(ctx, types.NamespacedName{Name: setName, Namespace: plan.Namespace}, &actual)
+	if err != nil {
+		return err
+	}
 	// merge patch machineSet config
+	origin := actual.DeepCopy()
+	var replicas int32 = int32(index + 1)
+	actual.Spec.Replicas = &replicas
 	actual.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
 	actual.Spec.Template.Spec.InfrastructureRef.APIVersion = Clusteropenstackapi
 	actual.Spec.Template.Spec.InfrastructureRef.Kind = Clusteropenstackkind
 	actual.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, target.Role, index)
-	err = cli.Update(ctx, &actual)
+	err = PatchMachineSet(ctx, cli, origin, &actual)
 	if err != nil {
 		return err
 	}
 	//TODO check new machine has created and InfrastructureRef !=nil,or give a reason to user
 	err = PollImmediate(retryIntervalInstanceStatus, timeoutInstanceCreate, func() (bool, error) {
-		var m *clusterapi.MachineSet
-		err := cli.Get(ctx, types.NamespacedName{
+		var m clusterapi.MachineSet
+		err = cli.Get(ctx, types.NamespacedName{
 			Namespace: actual.Namespace,
 			Name:      actual.Name,
-		}, m)
+		}, &m)
 		if err != nil {
 			return false, err
 		}
-
 		switch m.Status.FullyLabeledReplicas {
-		case *actual.Spec.Replicas:
+		case *origin.Spec.Replicas:
 			return true, nil
 		default:
 			return false, nil
@@ -141,6 +155,34 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	if err != nil {
 		return fmt.Errorf("check replicas is ready error:%v in get replicas %d", err, actual.Spec.Replicas)
 	}
+	return nil
+}
+
+// PatchMachineSet makes patch request to the MachineSet object.
+func PatchMachineSet(ctx context.Context, client client.Client, cur, mod *clusterapi.MachineSet) error {
+	curJSON, err := json.Marshal(cur)
+	if err != nil {
+		return fmt.Errorf("failed to serialize current service object: %s", err)
+	}
+
+	modJSON, err := json.Marshal(mod)
+	if err != nil {
+		return fmt.Errorf("failed to serialize modified service object: %s", err)
+	}
+	patch, err := jsonmergepatch.CreateThreeWayJSONMergePatch(curJSON, modJSON, curJSON)
+	if err != nil {
+		return fmt.Errorf("failed to create 2-way merge patch: %s", err)
+	}
+	if len(patch) == 0 || string(patch) == "{}" {
+		return nil
+	}
+	patchObj := runtimeclient.RawPatch(types.MergePatchType, patch)
+	// client patch machineSet replicas
+	err = client.Patch(ctx, cur, patchObj)
+	if err != nil {
+		return fmt.Errorf("failed to patch MachineSet object %s/%s: %s", cur.Namespace, cur.Name, err)
+	}
+
 	return nil
 }
 
@@ -166,7 +208,7 @@ func CheckOpenstackClusterReady(ctx context.Context, client client.Client, plan 
 
 // TODO get or create openstacktemplate resource,n openstacktemplate for one machineset
 func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan, set *ecnsv1.MachineSetReconcile, index int, masterGroup string, nodeGroup string) error {
-	if index > len(set.Infra) {
+	if index > len(set.Infra)-1 {
 		scope.Logger.Error(fmt.Errorf("index out of range infra"), "check plan machinesetreconcile infra")
 		return errNew.New("index out of range infra")
 	}
@@ -187,8 +229,11 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 			openstackTemplate.Spec.Template.Spec.Image = set.Image
 			openstackTemplate.Spec.Template.Spec.SSHKeyName = plan.Spec.SshKey
 			openstackTemplate.Spec.Template.Spec.CloudName = plan.Spec.ClusterName
+			openstackTemplate.Spec.Template.Spec.IdentityRef = &clusteropenstack.OpenStackIdentityReference{}
+			secretName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, "admin-etc")
 			openstackTemplate.Spec.Template.Spec.IdentityRef.Kind = "Secret"
-			openstackTemplate.Spec.Template.Spec.IdentityRef.Name = plan.Spec.ClusterName
+			openstackTemplate.Spec.Template.Spec.IdentityRef.Name = secretName
+			openstackTemplate.Spec.Template.Spec.RootVolume = &clusteropenstack.RootVolume{}
 			for _, volume := range infra.Volumes {
 				if volume.Index == 1 {
 					openstackTemplate.Spec.Template.Spec.RootVolume.VolumeType = volume.VolumeType
@@ -406,16 +451,17 @@ func createMachineset(ctx context.Context, scope *scope.Scope, client client.Cli
 	machineSet.Spec.DeletePolicy = "Newest"
 	machineSet.Spec.Selector.MatchLabels = make(map[string]string)
 	machineSet.Spec.Selector.MatchLabels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
-	if plan.Spec.UseFloatIP == true {
+	if plan.Spec.UseFloatIP == true && set.Role == "master"{
 		machineSet.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 		machineSet.Spec.Template.ObjectMeta.Annotations["machinedeployment.clusters.x-k8s.io/fip"] = "enable"
 	}
 	machineSet.Spec.Template.Labels = make(map[string]string)
 	machineSet.Spec.Template.Labels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
+	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef = &corev1.ObjectReference{}
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.APIVersion = Clusterapibootstrapapi
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.Kind = Clusterapibootstrapkind
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.Name = plan.Spec.ClusterName
-	cloud_secret_name := fmt.Sprintf("%s_%s_cloudinit", plan.Spec.ClusterName, set.Name)
+	cloud_secret_name := fmt.Sprintf("%s-%s-cloudinit", plan.Spec.ClusterName, set.Name)
 	machineSet.Spec.Template.Spec.Bootstrap.DataSecretName = &cloud_secret_name
 	machineSet.Spec.Template.Spec.ClusterName = plan.Spec.ClusterName
 	machineSet.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone

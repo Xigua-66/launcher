@@ -203,7 +203,7 @@ type PlanStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	//ServerGroupID is the server group id of cluster
-	ServerGroupID *servergroups `json:"server_group_id,omitempty"`
+	ServerGroupID *Servergroups `json:"server_group_id,omitempty"`
 	// MachineSets status
 	MachineSets []*MachineSetStatus `json:"machine_sets"`
 	// ClusterStatus is the status of cluster
@@ -214,7 +214,7 @@ type PlanStatus struct {
 	LastPlanMachineSets []*MachineSetReconcile `json:"last_plan_machine_sets,omitempty"`
 }
 
-type servergroups struct {
+type Servergroups struct {
 	// MasterServerGroupID is the server group id of master machine
 	MasterServerGroupID string `json:"master_server_group_id,omitempty"`
 	// WorkerServerGroupID is the server group id of worker machine

@@ -422,7 +422,7 @@ func (in *PlanStatus) DeepCopyInto(out *PlanStatus) {
 	*out = *in
 	if in.ServerGroupID != nil {
 		in, out := &in.ServerGroupID, &out.ServerGroupID
-		*out = new(servergroups)
+		*out = new(Servergroups)
 		**out = **in
 	}
 	if in.MachineSets != nil {

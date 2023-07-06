@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	goruntime "runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -32,6 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
+
+	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
+
+	kubeadm "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 
 	easystackcomv1 "easystack.com/plan/api/v1"
 	ecnsv1 "easystack.com/plan/api/v1"
@@ -51,10 +56,13 @@ func init() {
 
 	utilruntime.Must(clusteropenstack.AddToScheme(scheme))
 	utilruntime.Must(easystackcomv1.AddToScheme(scheme))
+	utilruntime.Must(clusterapi.AddToScheme(scheme))
+	utilruntime.Must(kubeadm.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
 func main() {
+	goruntime.GOMAXPROCS(goruntime.NumCPU())
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string

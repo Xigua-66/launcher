@@ -23,12 +23,12 @@ import (
 	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
-	errNew "errors"
 	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
+	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sync"
 	"text/template"
+	"time"
 )
 
 const ProjectAdminEtcSuffix = "admin-etc"
@@ -122,39 +123,39 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 		return ctrl.Result{}, err
 	}
 	log = log.WithValues("plan", plan.Name)
-	cluster, err := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
 
-	if cluster == nil {
-		log.Info("Cluster Controller has not yet set OwnerRef")
-		return reconcile.Result{}, nil
-	}
-
-	log = log.WithValues("cluster", cluster.Name)
 	if plan.Spec.Paused == true {
-		// set cluster.Spec.Paused = true
-		// first get the clusterv1.Cluster, then set cluster.Spec.Paused = true
-		// then update the cluster
-		// Fetch the Cluster.
-		if cluster.Spec.Paused == true {
-			log.Info("Cluster is already paused")
-			return ctrl.Result{}, nil
-		} else {
-			cluster.Spec.Paused = true
-			if err := r.Client.Update(ctx, cluster); err != nil {
-				return ctrl.Result{}, err
+		cluster, err1 := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
+		if err1 == nil {
+			log = log.WithValues("cluster", cluster.Name)
+			if cluster == nil {
+				log.Info("Cluster Controller has not yet set OwnerRef")
+				return reconcile.Result{}, nil
 			}
+			// set cluster.Spec.Paused = true
+			// first get the clusterv1.Cluster, then set cluster.Spec.Paused = true
+			// then update the cluster
+			// Fetch the Cluster.
+			if cluster.Spec.Paused == true {
+				log.Info("Cluster is already paused")
+				return ctrl.Result{}, nil
+			} else {
+				cluster.Spec.Paused = true
+				if err1 = r.Client.Update(ctx, cluster); err1 != nil {
+					return ctrl.Result{}, err1
+				}
 
+			}
 		}
-
 		return ctrl.Result{}, nil
 	} else {
-		if cluster.Spec.Paused == true {
-			cluster.Spec.Paused = false
-			if err := r.Client.Update(ctx, cluster); err != nil {
-				return ctrl.Result{}, err
+		cluster, err1 := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
+		if err1 == nil{
+			if cluster.Spec.Paused == true {
+				cluster.Spec.Paused = false
+				if err1 = r.Client.Update(ctx, cluster); err != nil {
+					return ctrl.Result{}, err1
+				}
 			}
 		}
 	}
@@ -244,8 +245,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		return ctrl.Result{}, err
 	}
 
-	plan.Status.ServerGroupID.MasterServerGroupID = mastergroupID
-	plan.Status.ServerGroupID.WorkerServerGroupID = nodegroupID
+
 	// List all machineset for this plan
 	machineSets, err := utils.ListMachineSets(ctx, r.Client, plan)
 	if err != nil {
@@ -257,6 +257,9 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			// create machineset
 			err := utils.CreateMachineSet(ctx, scope, r.Client, plan, set, mastergroupID, nodegroupID)
 			if err != nil {
+				if err.Error() == "openstack cluster is not ready" {
+					return ctrl.Result{RequeueAfter: 10*time.Second},nil
+				}
 				return ctrl.Result{}, err
 			}
 		}
@@ -353,8 +356,15 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 			// TODO create cluster resource
 			cluster.Name = plan.Spec.ClusterName
 			cluster.Namespace = plan.Namespace
+			cluster.Spec.ClusterNetwork = &clusterapi.ClusterNetwork{}
+			cluster.Spec.ClusterNetwork.Pods = &clusterapi.NetworkRanges{}
 			cluster.Spec.ClusterNetwork.Pods.CIDRBlocks = []string{plan.Spec.PodCidr}
 			cluster.Spec.ClusterNetwork.ServiceDomain = "cluster.local"
+			cluster.Spec.ControlPlaneEndpoint = clusterapi.APIEndpoint{
+				Host: "0.0.0.0",
+				Port: 6443,
+			}
+			cluster.Spec.InfrastructureRef = &corev1.ObjectReference{}
 			cluster.Spec.InfrastructureRef.APIVersion = "infrastructure.cluster.x-k8s.io/v1alpha6"
 			cluster.Spec.InfrastructureRef.Kind = "OpenStackCluster"
 			cluster.Spec.InfrastructureRef.Name = plan.Spec.ClusterName
@@ -397,8 +407,10 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 				openstackCluster.Spec.Network.Name = MSet.Infra[0].Subnets.SubnetNetwork
 				openstackCluster.Spec.Subnet.ID = MSet.Infra[0].Subnets.SubnetUUID
 			}
+			openstackCluster.Spec.IdentityRef = &clusteropenstackapis.OpenStackIdentityReference{}
 			openstackCluster.Spec.IdentityRef.Kind = "Secret"
-			openstackCluster.Spec.IdentityRef.Name = plan.Spec.ClusterName
+			secretName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
+			openstackCluster.Spec.IdentityRef.Name = secretName
 			openstackCluster.Spec.AllowAllInClusterTraffic = true
 			err := client.Create(ctx, &openstackCluster)
 			if err != nil {
@@ -423,13 +435,42 @@ func syncCreateKubeadmConfig(ctx context.Context, client client.Client, plan *ec
 			kubeadmconfigte.Name = plan.Spec.ClusterName
 			kubeadmconfigte.Namespace = plan.Namespace
 			kubeadmconfigte.Spec.Template.Spec.Format = "cloud-config"
-			err := client.Create(ctx, kubeadmconfigte)
+			kubeadmconfigte.Spec.Template.Spec.Files = []clusterkubeadm.File{
+				{
+					Path:        "/etc/kubernetes/cloud-config",
+					Content: "Cg==",
+					Encoding: "base64",
+					Owner: "root",
+					Permissions: "0600",
+
+				},
+				{
+					Path:        "/etc/certs/cacert",
+					Content: "Cg==",
+					Encoding: "base64",
+					Owner: "root",
+					Permissions: "0600",
+				},
+
+			}
+			kubeadmconfigte.Spec.Template.Spec.JoinConfiguration = &clusterkubeadm.JoinConfiguration{
+				NodeRegistration: clusterkubeadm.NodeRegistrationOptions{
+					Name: "'{{ local_hostname }}'",
+					KubeletExtraArgs: map[string]string{
+						"cloud-provider": "external",
+						"cloud-config": "/etc/kubernetes/cloud-config",
+					},
+				},
+			}
+
+			err = client.Create(ctx, kubeadmconfigte)
 			if err != nil {
 				return err
 			}
 			return nil
 		}
 	}
+
 	return nil
 
 }
@@ -455,10 +496,40 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 	if err != nil {
 		return "", "", err
 	}
-	if plan.Status.ServerGroupID.MasterServerGroupID !="" && plan.Status.ServerGroupID.WorkerServerGroupID != ""{
-		return  plan.Status.ServerGroupID.MasterServerGroupID,plan.Status.ServerGroupID.WorkerServerGroupID,nil
+	var historyM,historyN *servergroups.ServerGroup
+	severgroupCount :=0
+	masterGroupName := fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "master")
+	nodeGroupName := fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "work")
+	err = servergroups.List(client, &servergroups.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
+		actual, err := servergroups.ExtractServerGroups(page)
+		if err!=nil {
+			return false,errors.New("server group data list error,please check network")
+		}
+		for i,group := range actual {
+			if group.Name == masterGroupName {
+				severgroupCount++
+				historyM = &actual[i]
+			}
+			if group.Name == nodeGroupName {
+				severgroupCount++
+				historyN = &actual[i]
+			}
+		}
+
+		return true, nil
+	})
+	if err!=nil{
+		return "","",err
 	}
-	sg_master, err := servergroups.Create(client, &servergroups.CreateOpts{
+	if severgroupCount > 2 {
+		return "","",errors.New("please check serverGroups,has same name serverGroups")
+	}
+
+	if severgroupCount ==2 && historyM !=nil && historyN !=nil {
+		return historyM.ID,historyN.ID,nil
+	}
+
+	sgMaster, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "master"),
 		Policies: []string{"anti-affinity"},
 	}).Extract()
@@ -466,14 +537,16 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 		return "", "", err
 
 	}
-	sg_work, err := servergroups.Create(client, &servergroups.CreateOpts{
+
+	sgWork, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "work"),
 		Policies: []string{"anti-affinity"},
 	}).Extract()
 	if err != nil {
 		return "", "", err
 	}
-	return sg_master.ID, sg_work.ID, nil
+
+	return sgMaster.ID, sgWork.ID, nil
 
 }
 
@@ -497,8 +570,9 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 		setName := fmt.Sprintf("%s%s", plan.Spec.ClusterName, PlanSet.Role)
 		for _, ApiSet := range machineSetList.Items {
 			if ApiSet.Name == setName {
+				fakeSet := ApiSet.DeepCopy()
 				planBind.Bind = append(planBind.Bind, MachineSetBind{
-					ApiSet:  &ApiSet,
+					ApiSet:  fakeSet,
 					PlanSet: PlanSet,
 				})
 			}
@@ -509,6 +583,7 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 	var wg sync.WaitGroup
 	for _, bind := range planBind.Bind {
 		if *bind.ApiSet.Spec.Replicas < bind.PlanSet.Replica {
+			fmt.Println("scale replicas")
 			wg.Add(1)
 			go func(ctxfake context.Context, scope *scope.Scope, c client.Client, target *ecnsv1.MachineSetReconcile, actual *clusterapi.MachineSet, totalplan *ecnsv1.Plan, wait *sync.WaitGroup, mastergroup string, nodegroup string) {
 				err = r.processWork(ctxfake, scope, c, target, *actual, plan, wait, mastergroup, nodegroup)
@@ -528,31 +603,28 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 	defer func() {
 		wait.Done()
 	}()
-loop:
-	for {
-		// get machineset status now
-		var acNow clusterapi.MachineSet
-		err := c.Get(ctx, types.NamespacedName{Name: actual.Name, Namespace: actual.Namespace}, &acNow)
-		if err != nil {
-			return err
-		}
-		diff := target.Replica - *acNow.Spec.Replicas
-		switch {
-		case diff == 0:
-			break loop
-		case diff > 0:
-			index := *acNow.Spec.Replicas
-			err := utils.AddReplicas(ctx, sc, c, target, acNow, plan, int(index), mastergroup, nodegroup)
+	// get machineset status now
+	var acNow clusterapi.MachineSet
+	err := c.Get(ctx, types.NamespacedName{Name: actual.Name, Namespace: actual.Namespace}, &acNow)
+	if err != nil {
+		return err
+	}
+	diff := target.Replica - *acNow.Spec.Replicas
+	switch {
+	case diff == 0:
+		return nil
+	case diff > 0:
+		for i := 0; i < int(diff); i++ {
+			index := *acNow.Spec.Replicas+int32(i)
+			err := utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup)
 			if err != nil {
 				return err
 			}
-			continue
-		case diff < 0:
-			sc.Logger.Error(errNew.New("the actual replicas > plan replicas"), "cannot happend error")
-			break loop
 		}
-
+	case diff < 0:
+		return errors.New("please check replicas,can not scale down replicas")
 	}
+
 	return nil
 
 }
