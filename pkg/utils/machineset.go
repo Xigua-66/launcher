@@ -155,6 +155,7 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	if err != nil {
 		return fmt.Errorf("check replicas is ready error:%v in get replicas %d", err, actual.Spec.Replicas)
 	}
+	scope.Logger.Info("add replicas success", "replicas", actual.Spec.Replicas)
 	return nil
 }
 
@@ -162,12 +163,12 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 func PatchMachineSet(ctx context.Context, client client.Client, cur, mod *clusterapi.MachineSet) error {
 	curJSON, err := json.Marshal(cur)
 	if err != nil {
-		return fmt.Errorf("failed to serialize current service object: %s", err)
+		return fmt.Errorf("failed to serialize current MachineSet object: %s", err)
 	}
 
 	modJSON, err := json.Marshal(mod)
 	if err != nil {
-		return fmt.Errorf("failed to serialize modified service object: %s", err)
+		return fmt.Errorf("failed to serialize modified MachineSet object: %s", err)
 	}
 	patch, err := jsonmergepatch.CreateThreeWayJSONMergePatch(curJSON, modJSON, curJSON)
 	if err != nil {
@@ -277,7 +278,7 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 				// dont config subnet
 			}
 
-			if set.Role == "mas" {
+			if set.Role == "master" {
 				openstackTemplate.Spec.Template.Spec.ServerGroupID = masterGroup
 			} else {
 				openstackTemplate.Spec.Template.Spec.ServerGroupID = nodeGroup

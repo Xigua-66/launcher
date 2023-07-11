@@ -8,7 +8,7 @@ cd ./config/samples/
 - 2.修改自定义资源plan cr
 ```
 主要修改点:
-1.认证user.token字段修改 使用被测试的openstack 用户，创建对应的环境变量文件 以230为例子
+1.认证user.token字段修改 使用被测试的openstack 用户，创建对应的环境变量文件 以230为例子  注意这里使用凭据需要注意对应的权限。
 
 ()[root@busybox-openstack-55f847fb9b-gngnd /]# cat openrc.v3.admin 
 #!/bin/sh
@@ -39,11 +39,19 @@ export PYTHONIOENCODING=UTF-8
 | user_id    | 46e99d741db34395b39c5a76c5af80a4                                                                                                                                                        |
 +------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
+替换ecns_v1_plan.yaml中的
+token: "gAAAAABkp3jlbD7nZfmgREWH-jX1200cZIEY7-SPiaWfKbv_F8HIDca5fycrHo9WER_CesphdPh_yYgn8tn7OMsSmJx663FK6DMBKoQpRfsvdShiNwzVG09ADMCXmC3SmFhsPdRCdsGuqwHl5gxmL7PMM6BuPBxD0Qkd3cKGDnJMHbYzJ-_0HT0" 字段
+
 2.修改集群其他信息 例如cluster_name等 注意目前还不存在验重逻辑 因此cluster_name不能和已应用plan cr一致。
 3.应用cr
 kubectl apply -f ecns_v1_plan.yaml
 ```
--  3.程序调试
+- 3 添加本地认证host
+```
+10.230.0.2 keystone.openstack.svc.cluster.local
+10.230.0.2 nova.openstack.svc.cluster.local
+```
+-  4.程序调试
 ```
 go run cmd/main.go
 ```

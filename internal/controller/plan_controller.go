@@ -265,6 +265,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		}
 	} else {
 		// skip create machineset
+		scope.Logger.Info("Skip create machineset")
 
 	}
 	// Reconcile every machineset replicas
@@ -581,6 +582,7 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 	}
 	// every ApiSet has one goroutine to scale replicas
 	var wg sync.WaitGroup
+	sc.Logger.Info("start sync machineSet replicas")
 	for _, bind := range planBind.Bind {
 		if *bind.ApiSet.Spec.Replicas < bind.PlanSet.Replica {
 			fmt.Println("scale replicas")
@@ -594,6 +596,7 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 		}
 	}
 	wg.Wait()
+	sc.Logger.Info("sync machineSet replicas success")
 
 	return nil
 }
@@ -601,6 +604,7 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 // TODO  sync signal machineset replicas
 func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c client.Client, target *ecnsv1.MachineSetReconcile, actual clusterapi.MachineSet, plan *ecnsv1.Plan, wait *sync.WaitGroup, mastergroup string, nodegroup string) error {
 	defer func() {
+		sc.Logger.Info("waitGroup done")
 		wait.Done()
 	}()
 	// get machineset status now
@@ -616,7 +620,7 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 	case diff > 0:
 		for i := 0; i < int(diff); i++ {
 			index := *acNow.Spec.Replicas+int32(i)
-			err := utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup)
+			err = utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup)
 			if err != nil {
 				return err
 			}
