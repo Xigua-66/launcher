@@ -55,3 +55,12 @@ kubectl apply -f ecns_v1_plan.yaml
 ```
 go run cmd/main.go
 ```
+- 5.查看虚拟机创建日志
+```
+1.控制器日志
+kubectl  -n test-capo logs capo-controller-manager-684ff6fd7f-d4kg5
+2.资源message(以test1master0-vfrxn这台虚拟机为例)
+kubectl describe openstackmachine -n test-capo test1master0-vfrxn
+3.事件
+kubectl get event -n test-capo
+```
