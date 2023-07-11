@@ -7,15 +7,18 @@ metadata:
     app.kubernetes.io/part-of: easystack-eks-op
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: easystack-eks-op
-  name: plan-sample
+  name: plan-sample-fake
   namespace: test-capo
 spec:
-  mode: "new"
+  mode: "existed"
   k8sVersion: "1.20.14"
-  cluster_name: "test1"
+  cluster_name: "test2"
   ssh_key: "jian"
-  use_float_ip: false
-  node_cidr: "10.6.0.0/24"
+  use_float_ip: true
+  external_network_id: "822abc64-050a-4d50-b5fa-5e8027d2cf57"
+  dns_nameservers:
+    - "8.8.8.8"
+    - "114.114.114.114"
   machine_sets:
     - name: "test-master"
       image: "centos-qga"
@@ -24,6 +27,10 @@ spec:
       role: "master"
       infras:
         - availability_zone: "default-az"
+          subnets:
+            subnet_network: "127095f6-78f1-404d-b99c-5b1f91716aa7"
+            subnet_uuid: "6bb91a2c-7d2d-4bdf-b2a2-dd60c7ee2f3a"
+            fix_ip: ""
           volumes:
             - volume_type: "hdd"
               volume_size: 20
@@ -42,6 +49,10 @@ spec:
       role: "node"
       infras:
         - availability_zone: "default-az"
+          subnets:
+            subnet_network: "a08044b8-bb85-40b9-8049-bf6f350d7f63"
+            subnet_uuid: "6fac0235-7e03-41a0-a174-956e0cc5ca13"
+            fix_ip: ""
           volumes:
             - volume_type: "hdd"
               volume_size: 20
@@ -53,6 +64,10 @@ spec:
               volume_size: 5
               index: 3
         - availability_zone: "default-az"
+          subnets:
+            subnet_network: "f7813dcd-9055-47b2-809a-824b64683389"
+            subnet_uuid: "81afc536-2bfb-4050-b72d-7681760b8a61"
+            fix_ip: ""
           volumes:
             - volume_type: "hdd"
               volume_size: 20

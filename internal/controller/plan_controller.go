@@ -405,7 +405,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			} else {
 				openstackCluster.Spec.NodeCIDR = ""
 				//TODO openstackCluster.Spec.Network.ID should get master role plan.spec.Mach(master set only one infra)
-				openstackCluster.Spec.Network.Name = MSet.Infra[0].Subnets.SubnetNetwork
+				openstackCluster.Spec.Network.ID = MSet.Infra[0].Subnets.SubnetNetwork
 				openstackCluster.Spec.Subnet.ID = MSet.Infra[0].Subnets.SubnetUUID
 			}
 			openstackCluster.Spec.IdentityRef = &clusteropenstackapis.OpenStackIdentityReference{}
