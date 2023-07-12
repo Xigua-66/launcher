@@ -28,6 +28,8 @@ const (
 	// removing it from the apiserver.
 	MachineFinalizer = "plan.ecns.easystack.com"
 
+	ClusterFinalizer = "cluster.cluster.x-k8s.io"
+
 	// MachineSetClusterLabelName is the cluster label name
 	MachineSetClusterLabelName = "cluster.x-k8s.io/cluster-name"
 
@@ -35,6 +37,8 @@ const (
 	MachineSetLabelName = "cluster.x-k8s.io/set-name"
 
 	AnsibleFinalizer = "ansible.ecns.easystack.com"
+
+
 )
 
 type SetRole string
