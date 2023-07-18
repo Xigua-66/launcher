@@ -228,6 +228,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	// get gopher cloud client
 	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
 	// get or create app credential
+	scope.Logger.Info("Reconciling plan openstack resource")
 	err := syncAppCre(ctx, scope, r.Client, plan)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -678,11 +679,6 @@ func (r *PlanReconciler)deletePlanResource(ctx context.Context, scope *scope.Sco
 		return err
 	}
 	
-	err = deleteAppCre(ctx, scope, r.Client, plan) 
-	if err != nil {
-		return err
-	}
-	
 	err = deleteCloudInitSecret(ctx, r.Client, scope, plan)
 	if err != nil {
 		return err
@@ -694,6 +690,11 @@ func (r *PlanReconciler)deletePlanResource(ctx context.Context, scope *scope.Sco
 	}
 
 	err = deleteSSHKeySecert(ctx, scope, r.Client, plan)
+	if err != nil {
+		return err
+	}
+
+	err = deleteAppCre(ctx, scope, r.Client, plan)
 	if err != nil {
 		return err
 	}
@@ -735,18 +736,29 @@ func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *sco
 }
 
 func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
-	cluster := clusterapi.Cluster{}
-	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			scope.Logger.Error(err, "Cluster is already deleted.")
-			return nil
+	err := utils.PollImmediate(utils.RetryDeleteClusterInterval, utils.DeleteClusterTimeout, func() (bool, error) {
+		cluster := clusterapi.Cluster{}
+		err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				scope.Logger.Error(err, "Deleting the cluster succeeded")
+				return true, nil
+			}
 		}
-	}
+		if !cluster.ObjectMeta.DeletionTimestamp.IsZero() {
+			return false, nil
+		}
 
-	err = client.Delete(ctx, &cluster)
+		err = client.Delete(ctx, &cluster)
+		if err != nil {
+			scope.Logger.Error(err, "Delete cluster failed.")
+			return false, err
+		}
+		return false, nil
+	})
+
 	if err != nil {
-		scope.Logger.Error(err, "Delete cluster failed.")
+		scope.Logger.Error(err, "Failed to delete the cluster")
 		return err
 	}
 

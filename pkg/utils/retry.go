@@ -11,6 +11,8 @@ const (
 	backoffFactor   = 1.25
 	backoffDuration = 5
 	backoffJitter   = 1.0
+	RetryDeleteClusterInterval = 3 * time.Second
+	DeleteClusterTimeout = 5 * time.Second
 )
 
 // Retry retries a given function with exponential backoff.
