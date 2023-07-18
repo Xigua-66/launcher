@@ -196,7 +196,10 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 			// our finalizer is present, so lets handle any external dependency
 
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
-			r.deletePlanResource(ctx, scope, plan)
+			err = r.deletePlanResource(ctx, scope, plan)
+			if err != nil {
+				return ctrl.Result{RequeueAfter: 5*time.Second}, nil
+			}
 			// remove our finalizer from the list and update it.
 			var found bool
 			plan.ObjectMeta.Finalizers, found = RemoveString(ecnsv1.MachineFinalizer, plan.ObjectMeta.Finalizers)
@@ -754,6 +757,7 @@ func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope
 			scope.Logger.Error(err, "Delete cluster failed.")
 			return false, err
 		}
+
 		return false, nil
 	})
 
