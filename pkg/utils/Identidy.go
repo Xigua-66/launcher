@@ -25,6 +25,17 @@ func CreateAppCre(ctx context.Context, scope *scope.Scope, identityClient *gophe
 
 }
 
+
+func DeleteAppCre(ctx context.Context, scope *scope.Scope, identityClient *gophercloud.ServiceClient, id string) error {
+	err := applicationcredentials.Delete(identityClient, scope.UserID, id).ExtractErr()
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
 // GetTrustUser TODO get trust user in configmap by plan name
 func GetTrustUser(ctx context.Context, client client.Client, plan *ecnsv1.Plan) (*trusts.Trust, error) {
 	//TODO get trust user in configmap by plan name

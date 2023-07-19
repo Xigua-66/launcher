@@ -19,11 +19,15 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"sync"
+	"text/template"
+	"time"
+
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
-	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -41,12 +45,8 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sync"
-	"text/template"
-	"time"
 )
 
 const ProjectAdminEtcSuffix = "admin-etc"
@@ -111,7 +111,11 @@ type PlanMachineSetBind struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
 func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result,reterr error) {
-	log := log.FromContext(ctx)
+	var (
+		deletion = false
+		log = log.FromContext(ctx)
+	)
+	
 	// Fetch the OpenStackMachine instance.
 
 	plan := &ecnsv1.Plan{}
@@ -163,13 +167,6 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	defer func() {
-		if err := patchHelper.Patch(ctx, plan); err != nil {
-			if reterr == nil {
-				reterr = errors.Wrapf(err, "error patching OpenStackCluster %s/%s", plan.Namespace, plan.Name)
-			}
-		}
-	}()
 
 	osProviderClient, clientOpts, projectID, userID, err := provider.NewClientFromPlan(ctx, plan)
 	if err != nil {
@@ -183,27 +180,58 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 		Logger:             log,
 	}
 
-	if !plan.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(ctx, scope, patchHelper, plan)
+	if plan.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so if it does not have our finalizer,
+		// then lets add the finalizer and update the object. This is equivalent
+		// registering our finalizer.
+		if !StringInArray(ecnsv1.MachineFinalizer, plan.ObjectMeta.Finalizers) {
+			plan.ObjectMeta.Finalizers = append(plan.ObjectMeta.Finalizers, ecnsv1.MachineFinalizer)
+			if err := r.Update(context.Background(), plan); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	} else {
+		// The object is being deleted
+		if StringInArray(ecnsv1.MachineFinalizer, plan.ObjectMeta.Finalizers) {
+			// our finalizer is present, so lets handle any external dependency
+
+			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
+			err = r.deletePlanResource(ctx, scope, plan)
+			if err != nil {
+				return ctrl.Result{RequeueAfter: 5*time.Second}, nil
+			}
+			// remove our finalizer from the list and update it.
+			var found bool
+			plan.ObjectMeta.Finalizers, found = RemoveString(ecnsv1.MachineFinalizer, plan.ObjectMeta.Finalizers)
+			if found {
+				if err := r.Update(context.Background(), plan); err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+		}
+		return reconcile.Result{}, err
 	}
 
+	defer func() {
+		if !deletion {
+			if err := patchHelper.Patch(ctx, plan); err != nil {
+				if reterr == nil {
+					reterr = errors.Wrapf(err, "error patching OpenStackCluster %s/%s", plan.Namespace, plan.Name)
+				}
+			}
+		}
+		
+	}()
+	
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, scope, patchHelper, plan)
-
 }
 
 func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
-	// If the OpenStackMachine doesn't have our finalizer, add it.
-	controllerutil.AddFinalizer(plan, ecnsv1.MachineFinalizer)
-	// Register the finalizer immediately to avoid orphaning plan resources on delete
-	if err := patchHelper.Patch(ctx, plan); err != nil {
-		return ctrl.Result{}, err
-	}
-	scope.Logger.Info("Reconciling plan openstack resource")
 	// get gopher cloud client
 	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
-
 	// get or create app credential
+	scope.Logger.Info("Reconciling plan openstack resource")
 	err := syncAppCre(ctx, scope, r.Client, plan)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -280,39 +308,41 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	return ctrl.Result{}, nil
 }
 
-func (r *PlanReconciler) reconcileDelete(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
-	return ctrl.Result{}, nil
-}
-
 // TODO sync app cre
 func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan) error {
 	// TODO get openstack application credential secret by name  If not exist,then create openstack application credential and its secret.
+	// create openstack application credential
+	var (
+		secretName = fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
+		secret = &corev1.Secret{}
+	)
+	
+	IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
+		Region: scope.ProviderClientOpts.RegionName,
+	})
+	if err != nil {
+		return err
+	}
 
-	secretName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
-	secret := &corev1.Secret{}
-	err := cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
+	err = cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// create openstack application credential
-			IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
-				Region: scope.ProviderClientOpts.RegionName,
-			})
-			if err != nil {
-				return err
-			}
-			appkey, appsecret, err := utils.CreateAppCre(ctx, scope, IdentityClient, secretName)
+			creId, appsecret, err := utils.CreateAppCre(ctx, scope, IdentityClient, secretName)
 			if err != nil {
 				return err
 			}
 			var auth AuthConfig = AuthConfig{
 				ClusterName:   plan.Spec.ClusterName,
 				AuthUrl:       plan.Spec.UserInfo.AuthUrl,
-				AppCredID:     appkey,
+				AppCredID:     creId,
 				AppCredSecret: appsecret,
 				Region:        plan.Spec.UserInfo.Region,
 			}
-			var secretData = make(map[string][]byte)
-
+			var (
+				secretData = make(map[string][]byte)
+				creLabels = make(map[string]string)
+			)
+			creLabels["creId"] = creId
 			// Create a template object and parse the template string
 			t, err := template.New("auth").Parse(Authtmpl)
 			if err != nil {
@@ -331,6 +361,7 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secretName,
 					Namespace: plan.Namespace,
+					Labels:    creLabels,
 				},
 				Data: secretData,
 			}
@@ -344,6 +375,7 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -376,6 +408,7 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 		}
 		return err
 	}
+
 	return nil
 }
 
@@ -483,6 +516,7 @@ func syncSSH(ctx context.Context, client client.Client, plan *ecnsv1.Plan) error
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -633,10 +667,175 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 
 }
 
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ecnsv1.Plan{}).
 		Complete(r)
+}
+
+func (r *PlanReconciler)deletePlanResource(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	// List all machineset for this plan
+
+	err := deleteCluster(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
+	
+	err = deleteCloudInitSecret(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
+
+	err = deleteKubeadmConfig(ctx, scope, r.Client, plan)
+	if err != nil {
+		return err
+	}
+
+	err = deleteSSHKeySecert(ctx, scope, r.Client, plan)
+	if err != nil {
+		return err
+	}
+
+	err = deleteAppCre(ctx, scope, r.Client, plan)
+	if err != nil {
+		return err
+	}
+
+	return nil	
+}
+
+func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error{
+	machineSets, err := utils.ListMachineSets(ctx, client, plan)
+	if err != nil {
+		scope.Logger.Error(err, "List Machine Sets failed.")
+		return err
+	}
+
+	if len(machineSets.Items) == 0 {
+		// create all machineset Once
+		for _, set := range plan.Spec.MachineSets {
+			// create machineset
+			var cloudInitSecret corev1.Secret
+			secretName := fmt.Sprintf("%s-%s%s", plan.Spec.ClusterName, set.Name, utils.CloudInitSecretSuffix)
+			err := client.Get(ctx, types.NamespacedName{
+				Namespace: plan.Namespace,
+				Name:      secretName,
+			}, &cloudInitSecret)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					scope.Logger.Info(set.Name, utils.CloudInitSecretSuffix, " secret has already been deleted.")
+					return nil
+				}
+			}
+			err = client.Delete(ctx, &cloudInitSecret)
+			if err != nil {
+				scope.Logger.Error(err, "Delete cloud init secret failed.")
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	err := utils.PollImmediate(utils.RetryDeleteClusterInterval, utils.DeleteClusterTimeout, func() (bool, error) {
+		cluster := clusterapi.Cluster{}
+		err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				scope.Logger.Error(err, "Deleting the cluster succeeded")
+				return true, nil
+			}
+		}
+		if !cluster.ObjectMeta.DeletionTimestamp.IsZero() {
+			return false, nil
+		}
+
+		err = client.Delete(ctx, &cluster)
+		if err != nil {
+			scope.Logger.Error(err, "Delete cluster failed.")
+			return false, err
+		}
+
+		return false, nil
+	})
+
+	if err != nil {
+		scope.Logger.Error(err, "Failed to delete the cluster")
+		return err
+	}
+
+	return nil
+}
+
+func deleteAppCre(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan) error {
+	var (
+		secretName = fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
+		secret = &corev1.Secret{}
+	)
+	
+	IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
+		Region: scope.ProviderClientOpts.RegionName,
+	})
+	if err != nil {
+		return err
+	}
+	err = client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+		}
+	}
+
+	err = utils.DeleteAppCre(ctx, scope, IdentityClient, secret.ObjectMeta.Labels["creId"]) 
+	if err != nil {
+		scope.Logger.Error(err, "Delete application credential failed.")
+		return err
+	}
+	err = client.Delete(ctx, secret)
+	if err != nil {
+		scope.Logger.Error(err, "Delete application credential secret failed.")
+		return err
+	}
+
+	return nil
+}
+
+func deleteKubeadmConfig(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan) error {
+	kubeadmconfigte := &clusterkubeadm.KubeadmConfigTemplate{}
+	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, kubeadmconfigte)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			scope.Logger.Info("Cluster has already been deleted")
+			return nil
+		}
+	}
+
+	err = client.Delete(ctx, kubeadmconfigte)
+	if err != nil {
+		scope.Logger.Error(err, "Delete kubeadmin secert failed.")
+		return err
+	}
+
+	return nil
+}
+
+func deleteSSHKeySecert(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan) error {
+	secretName := fmt.Sprintf("%s%s", plan.Name, utils.SSHSecretSuffix)
+	//get secret by name secretName
+	secret := &corev1.Secret{}
+	err := client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
+	if err != nil {
+		if apierrors.IsNotFound(err){
+			log.Log.Info("SSHKeySecert has already been deleted")
+			return nil
+		}
+	}
+
+	err = client.Delete(ctx, secret)
+	if err != nil {
+		return err
+	}
+	
+	return nil
 }
