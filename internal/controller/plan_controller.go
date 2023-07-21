@@ -19,16 +19,13 @@ package controller
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"sync"
-	"text/template"
-	"time"
-
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
+	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
+	clusteropenstackerrors "github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
@@ -39,16 +36,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"reflect"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterkubeadm "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	clusterutils "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sync"
+	"text/template"
+	"time"
 )
 
+const (
+	waitForClusterInfrastructureReadyDuration = 30 * time.Second
+	waitForInstanceBecomeActiveToReconcile    = 60 * time.Second
+)
 const ProjectAdminEtcSuffix = "admin-etc"
 const Authtmpl = `clouds:
   {{.ClusterName}}:
@@ -110,12 +121,12 @@ type PlanMachineSetBind struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
-func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result,reterr error) {
+func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	var (
 		deletion = false
-		log = log.FromContext(ctx)
+		log      = log.FromContext(ctx)
 	)
-	
+
 	// Fetch the OpenStackMachine instance.
 
 	plan := &ecnsv1.Plan{}
@@ -154,7 +165,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 		return ctrl.Result{}, nil
 	} else {
 		cluster, err1 := clusterutils.GetClusterByName(ctx, r.Client, plan.Spec.ClusterName, plan.Namespace)
-		if err1 == nil{
+		if err1 == nil {
 			if cluster.Spec.Paused == true {
 				cluster.Spec.Paused = false
 				if err1 = r.Client.Update(ctx, cluster); err != nil {
@@ -198,7 +209,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
 			err = r.deletePlanResource(ctx, scope, plan)
 			if err != nil {
-				return ctrl.Result{RequeueAfter: 5*time.Second}, nil
+				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, nil
 			}
 			// remove our finalizer from the list and update it.
 			var found bool
@@ -216,13 +227,13 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 		if !deletion {
 			if err := patchHelper.Patch(ctx, plan); err != nil {
 				if reterr == nil {
-					reterr = errors.Wrapf(err, "error patching OpenStackCluster %s/%s", plan.Namespace, plan.Name)
+					reterr = errors.Wrapf(err, "error patching plan status %s/%s", plan.Namespace, plan.Name)
 				}
 			}
 		}
-		
+
 	}()
-	
+
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, scope, patchHelper, plan)
 }
@@ -272,35 +283,43 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
-
-	// List all machineset for this plan
-	machineSets, err := utils.ListMachineSets(ctx, r.Client, plan)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if len(machineSets.Items) == 0 {
-		// create all machineset Once
-		for _, set := range plan.Spec.MachineSets {
-			// create machineset
-			err := utils.CreateMachineSet(ctx, scope, r.Client, plan, set, mastergroupID, nodegroupID)
-			if err != nil {
-				if err.Error() == "openstack cluster is not ready" {
-					return ctrl.Result{RequeueAfter: 10*time.Second},nil
+	// create all machineset Once
+	for _, set := range plan.Spec.MachineSets {
+		// check machineSet is existed
+		fmt.Println("set.Role", set.Role)
+		machineSetName := fmt.Sprintf("%s%s", plan.Spec.ClusterName, set.Role)
+		machineSetNamespace := plan.Namespace
+		machineSet := &clusterapi.MachineSet{}
+		err = r.Client.Get(ctx, types.NamespacedName{Name: machineSetName, Namespace: machineSetNamespace}, machineSet)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				// create machineset
+				scope.Logger.Info("Create machineSet", "Namespace", machineSetNamespace, "Name", machineSetName)
+				err = utils.CreateMachineSet(ctx, scope, r.Client, plan, set, mastergroupID, nodegroupID)
+				if err != nil {
+					if err.Error() == "openstack cluster is not ready" {
+						scope.Logger.Info("Wait openstack cluster ready", "Namespace", machineSetNamespace, "Name", machineSetName)
+						return ctrl.Result{RequeueAfter: waitForClusterInfrastructureReadyDuration}, nil
+					}
+					return ctrl.Result{}, err
 				}
-				return ctrl.Result{}, err
+				continue
 			}
+			return ctrl.Result{}, err
 		}
-	} else {
-		// skip create machineset
-		scope.Logger.Info("Skip create machineset")
-
+		// skip create machineSet
+		scope.Logger.Info("Skip create machineSet")
 	}
+
 	// Reconcile every machineset replicas
 	err = r.syncMachine(ctx, scope, r.Client, plan, mastergroupID, nodegroupID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	plan.Status.ServerGroupID = &ecnsv1.Servergroups{}
+	plan.Status.ServerGroupID.MasterServerGroupID = mastergroupID
+	plan.Status.ServerGroupID.WorkerServerGroupID = nodegroupID
+	plan.Status.VMDone = true
 
 	// TODO check all machineset replicas is ready to num,create ansible plan
 	// 1.check status replicas
@@ -314,9 +333,9 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 	// create openstack application credential
 	var (
 		secretName = fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
-		secret = &corev1.Secret{}
+		secret     = &corev1.Secret{}
 	)
-	
+
 	IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
 		Region: scope.ProviderClientOpts.RegionName,
 	})
@@ -340,7 +359,7 @@ func syncAppCre(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 			}
 			var (
 				secretData = make(map[string][]byte)
-				creLabels = make(map[string]string)
+				creLabels  = make(map[string]string)
 			)
 			creLabels["creId"] = creId
 			// Create a template object and parse the template string
@@ -387,6 +406,8 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// TODO create cluster resource
+			cluster.Labels = make(map[string]string, 1)
+			cluster.Labels[utils.LabelEasyStackPlan] = plan.Name
 			cluster.Name = plan.Spec.ClusterName
 			cluster.Namespace = plan.Namespace
 			cluster.Spec.ClusterNetwork = &clusterapi.ClusterNetwork{}
@@ -472,27 +493,25 @@ func syncCreateKubeadmConfig(ctx context.Context, client client.Client, plan *ec
 			kubeadmconfigte.Spec.Template.Spec.Files = []clusterkubeadm.File{
 				{
 					Path:        "/etc/kubernetes/cloud-config",
-					Content: "Cg==",
-					Encoding: "base64",
-					Owner: "root",
+					Content:     "Cg==",
+					Encoding:    "base64",
+					Owner:       "root",
 					Permissions: "0600",
-
 				},
 				{
 					Path:        "/etc/certs/cacert",
-					Content: "Cg==",
-					Encoding: "base64",
-					Owner: "root",
+					Content:     "Cg==",
+					Encoding:    "base64",
+					Owner:       "root",
 					Permissions: "0600",
 				},
-
 			}
 			kubeadmconfigte.Spec.Template.Spec.JoinConfiguration = &clusterkubeadm.JoinConfiguration{
 				NodeRegistration: clusterkubeadm.NodeRegistrationOptions{
 					Name: "'{{ local_hostname }}'",
 					KubeletExtraArgs: map[string]string{
 						"cloud-provider": "external",
-						"cloud-config": "/etc/kubernetes/cloud-config",
+						"cloud-config":   "/etc/kubernetes/cloud-config",
 					},
 				},
 			}
@@ -531,16 +550,16 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 	if err != nil {
 		return "", "", err
 	}
-	var historyM,historyN *servergroups.ServerGroup
-	severgroupCount :=0
+	var historyM, historyN *servergroups.ServerGroup
+	severgroupCount := 0
 	masterGroupName := fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "master")
 	nodeGroupName := fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "work")
 	err = servergroups.List(client, &servergroups.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
 		actual, err := servergroups.ExtractServerGroups(page)
-		if err!=nil {
-			return false,errors.New("server group data list error,please check network")
+		if err != nil {
+			return false, errors.New("server group data list error,please check network")
 		}
-		for i,group := range actual {
+		for i, group := range actual {
 			if group.Name == masterGroupName {
 				severgroupCount++
 				historyM = &actual[i]
@@ -553,15 +572,15 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 
 		return true, nil
 	})
-	if err!=nil{
-		return "","",err
+	if err != nil {
+		return "", "", err
 	}
 	if severgroupCount > 2 {
-		return "","",errors.New("please check serverGroups,has same name serverGroups")
+		return "", "", errors.New("please check serverGroups,has same name serverGroups")
 	}
 
-	if severgroupCount ==2 && historyM !=nil && historyN !=nil {
-		return historyM.ID,historyN.ID,nil
+	if severgroupCount == 2 && historyM != nil && historyN != nil {
+		return historyM.ID, historyN.ID, nil
 	}
 
 	sgMaster, err := servergroups.Create(client, &servergroups.CreateOpts{
@@ -589,6 +608,7 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli client.Client, plan *ecnsv1.Plan, masterGroupID string, nodeGroupID string) error {
 	// TODO get every machineset replicas to plan
 	// 1. get machineset list
+	sc.Logger.Info("syncMachine", "plan", plan.Name)
 	labels := map[string]string{ecnsv1.MachineSetClusterLabelName: plan.Spec.ClusterName}
 	machineSetList := &clusterapi.MachineSetList{}
 	err := cli.List(ctx, machineSetList, client.InNamespace(plan.Namespace), client.MatchingLabels(labels))
@@ -618,16 +638,14 @@ func (r *PlanReconciler) syncMachine(ctx context.Context, sc *scope.Scope, cli c
 	var wg sync.WaitGroup
 	sc.Logger.Info("start sync machineSet replicas")
 	for _, bind := range planBind.Bind {
-		if *bind.ApiSet.Spec.Replicas < bind.PlanSet.Replica {
-			fmt.Println("scale replicas")
-			wg.Add(1)
-			go func(ctxfake context.Context, scope *scope.Scope, c client.Client, target *ecnsv1.MachineSetReconcile, actual *clusterapi.MachineSet, totalplan *ecnsv1.Plan, wait *sync.WaitGroup, mastergroup string, nodegroup string) {
-				err = r.processWork(ctxfake, scope, c, target, *actual, plan, wait, mastergroup, nodegroup)
-				if err != nil {
-					sc.Logger.Error(err, "sync machineSet replicas failed")
-				}
-			}(ctx, sc, cli, bind.PlanSet, bind.ApiSet, plan, &wg, masterGroupID, nodeGroupID)
-		}
+		fmt.Println("scale replicas")
+		wg.Add(1)
+		go func(ctxFake context.Context, scope *scope.Scope, c client.Client, target *ecnsv1.MachineSetReconcile, actual *clusterapi.MachineSet, totalPlan *ecnsv1.Plan, wait *sync.WaitGroup, masterGroup string, nodeGroup string) {
+			err = r.processWork(ctxFake, scope, c, target, *actual, plan, wait, masterGroup, nodeGroup)
+			if err != nil {
+				sc.Logger.Error(err, "sync machineSet replicas failed")
+			}
+		}(ctx, sc, cli, bind.PlanSet, bind.ApiSet, plan, &wg, masterGroupID, nodeGroupID)
 	}
 	wg.Wait()
 	sc.Logger.Info("sync machineSet replicas success")
@@ -643,45 +661,117 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 	}()
 	// get machineset status now
 	var acNow clusterapi.MachineSet
-	err := c.Get(ctx, types.NamespacedName{Name: actual.Name, Namespace: actual.Namespace}, &acNow)
+	var index int32
+
+	diffMap, err := utils.GetAdoptInfra(ctx, c, target, plan)
 	if err != nil {
 		return err
 	}
-	diff := target.Replica - *acNow.Spec.Replicas
-	switch {
-	case diff == 0:
-		return nil
-	case diff > 0:
-		for i := 0; i < int(diff); i++ {
-			index := *acNow.Spec.Replicas+int32(i)
-			err = utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup)
-			if err != nil {
-				return err
+	for uid, adoptIn := range diffMap {
+		err = c.Get(ctx, types.NamespacedName{Name: actual.Name, Namespace: actual.Namespace}, &acNow)
+		if err != nil {
+			return err
+		}
+
+		Fn := func(uid string) (int32, error) {
+			for i, in := range target.Infra {
+				if in.UID == uid {
+					return int32(i), nil
+				}
+			}
+			return -1, errors.New("infra not found")
+		}
+
+		index, err = Fn(uid)
+		if err != nil {
+			return err
+		}
+
+		var diff int64 = adoptIn.Diff
+
+		switch {
+		case diff == 0:
+			return errors.New("the infra dont need reconcile,please check code")
+		case diff > 0:
+			for i := 0; i < int(diff); i++ {
+				replicas := *acNow.Spec.Replicas + int32(i) + 1
+				err = utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup, replicas)
+				if err != nil {
+					return err
+				}
+			}
+		case diff < 0:
+			diff *= -1
+			if adoptIn.MachineHasDeleted != diff {
+				return fmt.Errorf("please make sure the machine has label %s", utils.DeleteMachineAnnotation)
+			}
+			for i := 0; i < int(diff); i++ {
+				replicas := *acNow.Spec.Replicas - int32(i) - 1
+				err = utils.SubReplicas(ctx, sc, c, target, actual.Name, plan, int(index), replicas)
+				if err != nil {
+					return err
+				}
 			}
 		}
-	case diff < 0:
-		return errors.New("please check replicas,can not scale down replicas")
+
 	}
-
 	return nil
-
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// need watch machine.
+func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager,options controller.Options) error {
+	ctx := context.Background()
+	machineToInfraFn := utils.MachineToInfrastructureMapFunc(ctx, mgr.GetClient())
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ecnsv1.Plan{}).
+		WithOptions(options).
+		For(
+			&ecnsv1.Plan{},
+			builder.WithPredicates(
+				predicate.Funcs{
+					// Avoid reconciling if the event triggering the reconciliation is related to incremental status updates
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						oldCluster := e.ObjectOld.(*ecnsv1.Plan).DeepCopy()
+						newCluster := e.ObjectNew.(*ecnsv1.Plan).DeepCopy()
+						oldCluster.Status = ecnsv1.PlanStatus{}
+						newCluster.Status = ecnsv1.PlanStatus{}
+						oldCluster.ObjectMeta.ResourceVersion = ""
+						newCluster.ObjectMeta.ResourceVersion = ""
+						return !reflect.DeepEqual(oldCluster, newCluster)
+					},
+				},
+			),
+		).
+		Watches(
+			&source.Kind{Type: &clusterapi.Machine{}},
+			handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+				requests := machineToInfraFn(o)
+				if len(requests) < 1 {
+					return nil
+				}
+
+				p := &ecnsv1.Plan{}
+				if err := r.Client.Get(ctx, requests[0].NamespacedName, p); err != nil {
+					return nil
+				}
+				return requests
+			})).
 		Complete(r)
 }
 
-func (r *PlanReconciler)deletePlanResource(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan) error {
+func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan) error {
 	// List all machineset for this plan
 
 	err := deleteCluster(ctx, r.Client, scope, plan)
 	if err != nil {
 		return err
 	}
-	
+
+	err = deleteMachineTemplate(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
+
 	err = deleteCloudInitSecret(ctx, r.Client, scope, plan)
 	if err != nil {
 		return err
@@ -702,10 +792,57 @@ func (r *PlanReconciler)deletePlanResource(ctx context.Context, scope *scope.Sco
 		return err
 	}
 
-	return nil	
+	err = deleteSeverGroup(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func deleteSeverGroup(ctx context.Context, cli client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	op, err := openstack.NewComputeV2(scope.ProviderClient, gophercloud.EndpointOpts{
+		Region: scope.ProviderClientOpts.RegionName,
+	})
+	if err != nil {
+		return err
+	}
+	if plan.Status.ServerGroupID != nil && plan.Status.ServerGroupID.MasterServerGroupID != "" && plan.Status.ServerGroupID.WorkerServerGroupID != "" {
+		err = servergroups.Delete(op, plan.Status.ServerGroupID.MasterServerGroupID).ExtractErr()
+		if err != nil {
+			if clusteropenstackerrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		err = servergroups.Delete(op, plan.Status.ServerGroupID.WorkerServerGroupID).ExtractErr()
+		if err != nil {
+			if clusteropenstackerrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+	return nil
 }
 
-func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error{
+func deleteMachineTemplate(ctx context.Context, cli client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	var machineTemplates clusteropenstackapis.OpenStackMachineTemplateList
+	labels := map[string]string{ecnsv1.MachineSetClusterLabelName: plan.Spec.ClusterName}
+	err := cli.List(ctx, &machineTemplates, client.InNamespace(plan.Namespace), client.MatchingLabels(labels))
+	if err != nil {
+		return err
+	}
+	for _, machineTemplate := range machineTemplates.Items {
+		err = cli.Delete(ctx, &machineTemplate)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
 	machineSets, err := utils.ListMachineSets(ctx, client, plan)
 	if err != nil {
 		scope.Logger.Error(err, "List Machine Sets failed.")
@@ -739,31 +876,31 @@ func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *sco
 }
 
 func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
-	err := utils.PollImmediate(utils.RetryDeleteClusterInterval, utils.DeleteClusterTimeout, func() (bool, error) {
+	err := client.Delete(ctx, &clusterapi.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      plan.Spec.ClusterName,
+			Namespace: plan.Namespace,
+		},
+	})
+	if err != nil {
+		scope.Logger.Error(err, "Delete cluster failed.")
+		return err
+	}
+	errR := utils.PollImmediate(utils.RetryDeleteClusterInterval, utils.DeleteClusterTimeout, func() (bool, error) {
 		cluster := clusterapi.Cluster{}
-		err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
+		err = client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				scope.Logger.Error(err, "Deleting the cluster succeeded")
+				scope.Logger.Info("Deleting the cluster succeeded")
 				return true, nil
 			}
-		}
-		if !cluster.ObjectMeta.DeletionTimestamp.IsZero() {
 			return false, nil
 		}
-
-		err = client.Delete(ctx, &cluster)
-		if err != nil {
-			scope.Logger.Error(err, "Delete cluster failed.")
-			return false, err
-		}
-
 		return false, nil
 	})
-
-	if err != nil {
-		scope.Logger.Error(err, "Failed to delete the cluster")
-		return err
+	if errR != nil {
+		scope.Logger.Error(err, "Deleting the cluster timeout,rejoin reconcile")
+		return errR
 	}
 
 	return nil
@@ -772,9 +909,9 @@ func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope
 func deleteAppCre(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan) error {
 	var (
 		secretName = fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
-		secret = &corev1.Secret{}
+		secret     = &corev1.Secret{}
 	)
-	
+
 	IdentityClient, err := openstack.NewIdentityV3(scope.ProviderClient, gophercloud.EndpointOpts{
 		Region: scope.ProviderClientOpts.RegionName,
 	})
@@ -787,13 +924,19 @@ func deleteAppCre(ctx context.Context, scope *scope.Scope, client client.Client,
 		}
 	}
 
-	err = utils.DeleteAppCre(ctx, scope, IdentityClient, secret.ObjectMeta.Labels["creId"]) 
+	err = utils.DeleteAppCre(ctx, scope, IdentityClient, secret.ObjectMeta.Labels["creId"])
 	if err != nil {
+		if clusteropenstackerrors.IsNotFound(err) {
+			return nil
+		}
 		scope.Logger.Error(err, "Delete application credential failed.")
 		return err
 	}
 	err = client.Delete(ctx, secret)
 	if err != nil {
+		if clusteropenstackerrors.IsNotFound(err) {
+			return nil
+		}
 		scope.Logger.Error(err, "Delete application credential secret failed.")
 		return err
 	}
@@ -826,7 +969,7 @@ func deleteSSHKeySecert(ctx context.Context, scope *scope.Scope, client client.C
 	secret := &corev1.Secret{}
 	err := client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
-		if apierrors.IsNotFound(err){
+		if apierrors.IsNotFound(err) {
 			log.Log.Info("SSHKeySecert has already been deleted")
 			return nil
 		}
@@ -836,6 +979,6 @@ func deleteSSHKeySecert(ctx context.Context, scope *scope.Scope, client client.C
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }

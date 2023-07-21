@@ -22,8 +22,13 @@ import (
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"reflect"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"time"
 
 	"github.com/shirou/gopsutil/process"
@@ -172,8 +177,25 @@ func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Lo
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AnsiblePlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *AnsiblePlanReconciler) SetupWithManager(mgr ctrl.Manager,options controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&easystackcomv1.AnsiblePlan{}).
+		WithOptions(options).
+		For(
+			&easystackcomv1.AnsiblePlan{},
+			builder.WithPredicates(
+				predicate.Funcs{
+					// Avoid reconciling if the event triggering the reconciliation is related to incremental status updates
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						oldCluster := e.ObjectOld.(*easystackcomv1.AnsiblePlan).DeepCopy()
+						newCluster := e.ObjectNew.(*easystackcomv1.AnsiblePlan).DeepCopy()
+						oldCluster.Status = easystackcomv1.AnsiblePlanStatus{}
+						newCluster.Status = easystackcomv1.AnsiblePlanStatus{}
+						oldCluster.ObjectMeta.ResourceVersion = ""
+						newCluster.ObjectMeta.ResourceVersion = ""
+						return !reflect.DeepEqual(oldCluster, newCluster)
+					},
+				},
+			),
+		).
 		Complete(r)
 }

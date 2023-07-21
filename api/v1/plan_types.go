@@ -37,8 +37,6 @@ const (
 	MachineSetLabelName = "cluster.x-k8s.io/set-name"
 
 	AnsibleFinalizer = "ansible.ecns.easystack.com"
-
-
 )
 
 type SetRole string
@@ -160,14 +158,10 @@ type MonitorConfig struct {
 type MachineSetReconcile struct {
 	// Name is the name of machine
 	Name string `json:"name"`
-	// image is the image of machine
-	Image string `json:"image"`
-	// Flavor is the flavor of machine
-	Flavor string `json:"flavor"`
-	// replica is the replica of machine
-	Replica int32 `json:"replica"`
+	// Number is the number of all machine
+	Number int32 `json:"number"`
 	// Role is the role of machine
-	Role SetRole `json:"role"`
+	Role string `json:"role"`
 	// Infras is the infras of machine
 	Infra []*Infras `json:"infras,omitempty"`
 	// CloudInit is the cloud init secret of machine,base64 file,can use it to config the machine
@@ -175,6 +169,8 @@ type MachineSetReconcile struct {
 	CloudInit string `json:"init,omitempty"`
 }
 type Infras struct {
+	// UID is the uid of infra
+	UID string `json:"uid"`
 	// AvailabilityZone are a set of failure domains for machines
 	// decide the every machine's AZ
 	AvailabilityZone string `json:"availability_zone"`
@@ -184,6 +180,12 @@ type Infras struct {
 	Subnets *Subnet `json:"subnets,omitempty"`
 	// Volumes are the volume type of machine,include root volume and data volume
 	Volumes []*volume `json:"volumes,omitempty"`
+	// image is the image of machine
+	Image string `json:"image"`
+	// Flavor is the flavor of machine
+	Flavor string `json:"flavor"`
+	// replica is the replica of machine
+	Replica int32 `json:"replica"`
 }
 type volume struct {
 	// VolumeType is the volume type of machine
@@ -208,14 +210,8 @@ type PlanStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	//ServerGroupID is the server group id of cluster
 	ServerGroupID *Servergroups `json:"server_group_id,omitempty"`
-	// MachineSets status
-	MachineSets []*MachineSetStatus `json:"machine_sets"`
-	// ClusterStatus is the status of cluster
-	ClusterStatus *clusteropenstack.OpenStackClusterStatus `json:"cluster_status"`
-	// FailureMessage are the all failure message
-	FailureMessage []*string `json:"failureMessage,omitempty"`
-	// LastPlanMachineSets is the histroy spec,to decide the AnsiblePlanSpec Type is scale or install
-	LastPlanMachineSets []*MachineSetReconcile `json:"last_plan_machine_sets,omitempty"`
+	// VMDone show the vm is created or not
+	VMDone bool `json:"vm_done,omitempty"`
 }
 
 type Servergroups struct {

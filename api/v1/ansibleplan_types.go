@@ -37,7 +37,9 @@ type AnsiblePlanSpec struct {
 	// Done is the flag to indicate the plan is done
 	Done bool `json:"done,omitempty"`
 	// Plan is the plan name
-	Plan string `json:"cluster,omitempty"`
+	Plan string `json:"plan,omitempty"`
+	// SSHSecret is the ssh secret name
+	SSHSecret string `json:"ssh_secret"`
 }
 
 type AnsibleInstall struct {
@@ -58,6 +60,8 @@ type AnsibleInstall struct {
 	KubePrometheus []string `json:"kubePrometheus,omitempty"`
 	// KubeLog is the kube log group
 	KubeLog []string `json:"kubeLog,omitempty"`
+	// OtherGroup is the other group
+	OtherGroup map[string]string `json:"otherGroup,omitempty"`
 	// OtherAnsibleOpts is the ansible custome vars
 	// OtherAnsibleOpts => ansible test/vars.yaml
 	OtherAnsibleOpts map[string]string `json:"other_ansible_opts,omitempty"`
@@ -68,8 +72,6 @@ type AnsibleNode struct {
 	Name string `json:"name,omitempty"`
 	// AnsibleHost is the ansible host
 	AnsibleHost string `json:"ansibleHost,omitempty"`
-	// AnsibleProxy is the ansible proxy
-	AnsibleProxy string `json:"ansibleProxy,omitempty"`
 	// AnsibleIP is the ansible ip
 	AnsibleIP string `json:"ansibleIP,omitempty"`
 }

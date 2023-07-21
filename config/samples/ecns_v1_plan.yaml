@@ -18,12 +18,11 @@ spec:
   node_cidr: "10.6.0.0/24"
   machine_sets:
     - name: "test-master"
-      image: "centos-qga"
-      flavor: "2C-4G"
-      replica: 1
       role: "master"
+      number: 1
       infras:
-        - availability_zone: "default-az"
+        - uid: "7d2d"
+          availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
               volume_size: 20
@@ -34,14 +33,17 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-
-    - name: "test"
+          image: "centos-qga"
+          flavor: "2C-4G"
+          replica: 1
+    - name: "test-node"
       image: "centos-qga"
       flavor: "2C-4G"
-      replica: 2
+      number: 2
       role: "node"
       infras:
-        - availability_zone: "default-az"
+        - uid: "bb85"
+          availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
               volume_size: 20
@@ -52,17 +54,9 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-        - availability_zone: "default-az"
-          volumes:
-            - volume_type: "hdd"
-              volume_size: 20
-              index: 1
-            - volume_type: "hdd"
-              volume_size: 10
-              index: 2
-            - volume_type: "hdd"
-              volume_size: 5
-              index: 3
+          image: "centos-qga"
+          flavor: "2C-4G"
+          replica: 2
   monitor:
     pvc_type: "hdd"
     pvc_cap: "10"
@@ -74,7 +68,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkrhQLbr47lsBsTQCvNvYZzRceFEBpJHoAJyYbA1UG70Cv-pYl6nN6CdvK1T2SSm-69LjThy52MrU_-OnRHWPpqX1c1htmfd9Cx-hC5ImtXFlMW6nWKk8q35-sDojYoKoObzWziVkXjt_-GWx0b44SnlO8eUppYjOs29PlrEivmTT9W58"
+    token: "gAAAAABkuM5Tl6KzZI2z4_dBXkkogasUebL-v7rOK57ivamVfs5vDnK8qZmpTjRJu0Z9CVC467LALRI6C4JtcMagYeusffyzyJ6WWloVcsfxgQRccm9YM-M8Z5Uc2Uawh56MbxIpsQM9zlXG8AHrW1x0kyw0JiklBfEU0ZVDRAUBM6NdMat5Jak"
     region: "RegionOne"
 
 

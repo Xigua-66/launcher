@@ -27,13 +27,16 @@ import (
 )
 
 const (
+	LabelTemplateInfra          = "easystack.com/infra"
+	LabelEasyStackCluster       = "easystack.com/cluster"
+	LabelEasyStackPlan          = "easystack.com/plan"
 	Clusterapibootstrapapi      = "bootstrap.cluster.x-k8s.io/v1beta1"
 	Clusterapibootstrapkind     = "KubeadmConfigTemplate"
 	Clusteropenstackapi         = "infrastructure.cluster.x-k8s.io/v1alpha6"
 	Clusteropenstackkind        = "OpenStackMachineTemplate"
 	CloudInitSecretSuffix       = "-cloudinit"
-	retryIntervalInstanceStatus = 1 * time.Second
-	timeoutInstanceCreate       = 3 * time.Second
+	retryIntervalInstanceStatus = 5 * time.Second
+	timeoutInstanceCreate       = 10 * time.Second
 
 	// OpenstackGlobalAuthTpl go template
 	OpenstackGlobalAuthTpl = `[Global]
@@ -102,7 +105,7 @@ func CreateMachineSet(ctx context.Context, scope *scope.Scope, client client.Cli
 }
 
 // AddReplicas for machineset add replicas
-func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, target *ecnsv1.MachineSetReconcile, setName string, plan *ecnsv1.Plan, index int, mastergroup string, nodegroup string) error {
+func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, target *ecnsv1.MachineSetReconcile, setName string, plan *ecnsv1.Plan, index int, mastergroup string, nodegroup string, Mre int32) error {
 	err := getOrCreateOpenstackTemplate(ctx, scope, cli, plan, target, index, mastergroup, nodegroup)
 	if err != nil {
 		return err
@@ -118,19 +121,71 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	}
 	infra := target.Infra[index]
 
-	var  actual clusterapi.MachineSet
+	var actual clusterapi.MachineSet
 	err = cli.Get(ctx, types.NamespacedName{Name: setName, Namespace: plan.Namespace}, &actual)
 	if err != nil {
 		return err
 	}
 	// merge patch machineSet config
 	origin := actual.DeepCopy()
-	var replicas int32 = int32(index + 1)
+	var replicas int32 = Mre
+	actual.Spec.Replicas = &replicas
+	scope.Logger.Info("prepare add to replicas", "replicas", replicas)
+	actual.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
+	actual.Spec.Template.Spec.InfrastructureRef.APIVersion = Clusteropenstackapi
+	actual.Spec.Template.Spec.InfrastructureRef.Kind = Clusteropenstackkind
+	actual.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, target.Role, infra.UID)
+	err = PatchMachineSet(ctx, cli, origin, &actual)
+	if err != nil {
+		return err
+	}
+	//TODO check new machine has created and InfrastructureRef !=nil,or give a reason to user
+	err = PollImmediate(retryIntervalInstanceStatus, timeoutInstanceCreate, func() (bool, error) {
+		var m clusterapi.MachineSet
+		err = cli.Get(ctx, types.NamespacedName{
+			Namespace: actual.Namespace,
+			Name:      actual.Name,
+		}, &m)
+		if err != nil {
+			return false, err
+		}
+		scope.Logger.Info("wait add to replicas", "replicas", m.Status.FullyLabeledReplicas)
+
+		switch m.Status.FullyLabeledReplicas {
+		case *origin.Spec.Replicas + 1:
+			return true, nil
+		default:
+			return false, nil
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("check replicas is ready error:%v in get replicas %d", err, actual.Spec.Replicas)
+	}
+	scope.Logger.Info("add replicas success", "replicas", actual.Spec.Replicas)
+	return nil
+}
+
+// SubReplicas for machineSet sub replicas
+func SubReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, target *ecnsv1.MachineSetReconcile, setName string, plan *ecnsv1.Plan, index int, Mre int32) error {
+	if index > len(target.Infra) {
+		scope.Logger.Error(fmt.Errorf("index out of range infra"), "check plan machinesetreconcile infra")
+		return errNew.New("index out of range infra")
+	}
+	infra := target.Infra[index]
+
+	var actual clusterapi.MachineSet
+	err := cli.Get(ctx, types.NamespacedName{Name: setName, Namespace: plan.Namespace}, &actual)
+	if err != nil {
+		return err
+	}
+	// merge patch machineSet config
+	origin := actual.DeepCopy()
+	var replicas int32 = Mre
 	actual.Spec.Replicas = &replicas
 	actual.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
 	actual.Spec.Template.Spec.InfrastructureRef.APIVersion = Clusteropenstackapi
 	actual.Spec.Template.Spec.InfrastructureRef.Kind = Clusteropenstackkind
-	actual.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, target.Role, index)
+	actual.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, target.Role, infra.UID)
 	err = PatchMachineSet(ctx, cli, origin, &actual)
 	if err != nil {
 		return err
@@ -146,7 +201,7 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 			return false, err
 		}
 		switch m.Status.FullyLabeledReplicas {
-		case *origin.Spec.Replicas:
+		case *origin.Spec.Replicas - 1:
 			return true, nil
 		default:
 			return false, nil
@@ -208,7 +263,8 @@ func CheckOpenstackClusterReady(ctx context.Context, client client.Client, plan 
 }
 
 // TODO get or create openstacktemplate resource,n openstacktemplate for one machineset
-func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan, set *ecnsv1.MachineSetReconcile, index int, masterGroup string, nodeGroup string) error {
+func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, client client.Client, plan *ecnsv1.Plan, set *ecnsv1.MachineSetReconcile, index int, masterGroup string, nodeGroup string) (rer error) {
+
 	if index > len(set.Infra)-1 {
 		scope.Logger.Error(fmt.Errorf("index out of range infra"), "check plan machinesetreconcile infra")
 		return errNew.New("index out of range infra")
@@ -219,15 +275,20 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 	// get openstacktemplate by filiter from cache
 	err := client.Get(ctx, types.NamespacedName{
 		Namespace: plan.Namespace,
-		Name:      fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, set.Role, index),
+		Name:      fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, set.Role, infra.UID),
 	}, &openstackTemplate)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// create openstacktemplate
-			openstackTemplate.Name = fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, set.Role, index)
+			// add label to openstacktemplate with infra uid
+			openstackTemplate.ObjectMeta.Labels = map[string]string{
+				LabelTemplateInfra:    infra.UID,
+				LabelEasyStackCluster: plan.Spec.ClusterName,
+			}
+			openstackTemplate.Name = fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, set.Role, infra.UID)
 			openstackTemplate.Namespace = plan.Namespace
-			openstackTemplate.Spec.Template.Spec.Flavor = set.Flavor
-			openstackTemplate.Spec.Template.Spec.Image = set.Image
+			openstackTemplate.Spec.Template.Spec.Flavor = infra.Flavor
+			openstackTemplate.Spec.Template.Spec.Image = infra.Image
 			openstackTemplate.Spec.Template.Spec.SSHKeyName = plan.Spec.SshKey
 			openstackTemplate.Spec.Template.Spec.CloudName = plan.Spec.ClusterName
 			openstackTemplate.Spec.Template.Spec.IdentityRef = &clusteropenstack.OpenStackIdentityReference{}
@@ -248,6 +309,11 @@ func getOrCreateOpenstackTemplate(ctx context.Context, scope *scope.Scope, clien
 			}
 			if plan.Spec.NetMode == "existed" {
 				if infra.Subnets != nil {
+					if infra.Replica > 1 && infra.Subnets.FixIP != "" {
+						err = errors.NewBadRequest("replica more than 1,fixIp must be empty")
+						scope.Logger.Error(fmt.Errorf("replica more than 1,fixip must be empty"), "please check your plan machineSetReconcile infra subnets fixIp")
+						return err
+					}
 					if infra.Subnets.SubnetUUID == "" {
 						err = errors.NewBadRequest("subnet uuid is empty")
 						scope.Logger.Error(err, "please check your plan machineSetReconcile infra subnets uuid")
@@ -397,15 +463,15 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 					{
 						Device:     "/dev/vdb",
 						Filesystem: "xfs",
-						Partition: pointer.String("auto"),
-						Overwrite: pointer.Bool(false),
+						Partition:  pointer.String("auto"),
+						Overwrite:  pointer.Bool(false),
 						Label:      "kubernetes",
 					},
 					{
 						Device:     "/dev/vdc",
 						Filesystem: "xfs",
-						Overwrite: pointer.Bool(false),
-						Partition: pointer.String("auto"),
+						Overwrite:  pointer.Bool(false),
+						Partition:  pointer.String("auto"),
 						Label:      "data",
 					},
 				},
@@ -452,7 +518,7 @@ func createMachineset(ctx context.Context, scope *scope.Scope, client client.Cli
 	machineSet.Spec.DeletePolicy = "Newest"
 	machineSet.Spec.Selector.MatchLabels = make(map[string]string)
 	machineSet.Spec.Selector.MatchLabels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
-	if plan.Spec.UseFloatIP == true && set.Role == "master"{
+	if plan.Spec.UseFloatIP == true && set.Role == "master" {
 		machineSet.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 		machineSet.Spec.Template.ObjectMeta.Annotations["machinedeployment.clusters.x-k8s.io/fip"] = "enable"
 	}
@@ -468,7 +534,7 @@ func createMachineset(ctx context.Context, scope *scope.Scope, client client.Cli
 	machineSet.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
 	machineSet.Spec.Template.Spec.InfrastructureRef.APIVersion = Clusteropenstackapi
 	machineSet.Spec.Template.Spec.InfrastructureRef.Kind = Clusteropenstackkind
-	machineSet.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%d", plan.Spec.ClusterName, set.Role, index)
+	machineSet.Spec.Template.Spec.InfrastructureRef.Name = fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, set.Role, infra.UID)
 	machineSet.Spec.Template.Spec.Version = &plan.Spec.K8sVersion
 	err := client.Create(ctx, &machineSet)
 	if err != nil {

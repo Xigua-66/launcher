@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	NETATTDEFFINALIZERNAME  = "plan.finalizers.eks.io"
+	NETATTDEFFINALIZERNAME = "plan.finalizers.eks.io"
 )
 
 const invalidVfIndex = -1
@@ -35,7 +35,6 @@ const (
 
 	SUPPORTED_NIC_ID_CONFIGMAP = "supported-nic-ids"
 )
-
 
 func (e NetFilterType) String() string {
 	switch e {
@@ -200,4 +199,3 @@ func RemoveString(s string, slice []string) (result []string, found bool) {
 	}
 	return
 }
-

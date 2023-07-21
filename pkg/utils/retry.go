@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	backoffSteps    = 10
-	backoffFactor   = 1.25
-	backoffDuration = 5
-	backoffJitter   = 1.0
-	RetryDeleteClusterInterval = 3 * time.Second
-	DeleteClusterTimeout = 5 * time.Second
+	backoffSteps               = 10
+	backoffFactor              = 1.25
+	backoffDuration            = 5
+	backoffJitter              = 1.0
+	RetryDeleteClusterInterval = 10 * time.Second
+	DeleteClusterTimeout       = 2 * time.Minute
 )
 
 // Retry retries a given function with exponential backoff.

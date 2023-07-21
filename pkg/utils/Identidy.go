@@ -25,7 +25,6 @@ func CreateAppCre(ctx context.Context, scope *scope.Scope, identityClient *gophe
 
 }
 
-
 func DeleteAppCre(ctx context.Context, scope *scope.Scope, identityClient *gophercloud.ServiceClient, id string) error {
 	err := applicationcredentials.Delete(identityClient, scope.UserID, id).ExtractErr()
 	if err != nil {
