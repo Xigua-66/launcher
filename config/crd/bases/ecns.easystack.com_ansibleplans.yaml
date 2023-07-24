@@ -120,9 +120,13 @@ spec:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file'
                 type: string
+              version:
+                description: Version is the version of the k8s
+                type: string
             required:
             - ssh_secret
             - type
+            - version
             type: object
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan

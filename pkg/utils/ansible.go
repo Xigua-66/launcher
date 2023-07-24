@@ -154,7 +154,7 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 		playbook = "reset.yml"
 	}
 	var inventory = fmt.Sprintf("/tmp/%s", ansible.UID)
-	cmd := exec.Command("ansible-playbook","-i", inventory , playbook, "--extra-vars", `"@`+fmt.Sprintf("/tmp/%s.vars", ansible.UID)+`"`)
+	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", `"@`+fmt.Sprintf("/tmp/%s.vars", ansible.UID)+`"`)
 	// TODO cmd.Dir need to be change when python version change.
 	cmd.Dir = "/opt/captain"
 	stdout, err := cmd.StdoutPipe()
@@ -164,7 +164,7 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	var logfile =fmt.Sprintf("/tmp/%s.log", ansible.UID)
+	var logfile = fmt.Sprintf("/tmp/%s.log", ansible.UID)
 	var logFile *os.File
 	defer logFile.Close()
 	if !FileExist(logfile) {
@@ -174,14 +174,14 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 			return err
 		}
 
-	}else{
+	} else {
 		// if log file exist,open it and get io.writer
 		logFile, err = os.OpenFile(logfile, os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
 	}
-	var stdoutCopy  = bufio.NewWriterSize(logFile,1024)
+	var stdoutCopy = bufio.NewWriter(logFile)
 	_, err = io.Copy(stdoutCopy, stdout)
 	if err != nil {
 		return err
@@ -192,9 +192,11 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 		} else {
 			log.Fatalf("cmd.Wait: %v", err)
 		}
+		stdoutCopy.Flush()
 		ansible.Spec.Done = false
 		return err
 	}
+	stdoutCopy.Flush()
 	ansible.Spec.Done = true
 
 	return nil
