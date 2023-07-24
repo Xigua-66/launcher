@@ -116,6 +116,10 @@ spec:
               ssh_secret:
                 description: SSHSecret is the ssh secret name
                 type: string
+              support_python3:
+                description: SupportPython3 is the flag to indicate the Host support
+                  python3(default python is python3)
+                type: boolean
               type:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file'
@@ -125,6 +129,7 @@ spec:
                 type: string
             required:
             - ssh_secret
+            - support_python3
             - type
             - version
             type: object

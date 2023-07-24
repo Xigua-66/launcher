@@ -156,7 +156,12 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 	var inventory = fmt.Sprintf("/tmp/%s", ansible.UID)
 	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", `"@`+fmt.Sprintf("/tmp/%s.vars", ansible.UID)+`"`)
 	// TODO cmd.Dir need to be change when python version change.
-	cmd.Dir = "/opt/captain"
+	if ansible.Spec.SupportPython3 {
+		cmd.Dir = "/opt/captain3"
+	} else {
+		cmd.Dir = "/opt/captain"
+	}
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

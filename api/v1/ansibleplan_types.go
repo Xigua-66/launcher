@@ -41,6 +41,8 @@ type AnsiblePlanSpec struct {
 	SSHSecret string `json:"ssh_secret"`
 	// Version is the version of the k8s
 	Version string `json:"version"`
+	// SupportPython3 is the flag to indicate the Host support python3(default python is python3)
+	SupportPython3 bool `json:"support_python3"`
 }
 
 type AnsibleInstall struct {

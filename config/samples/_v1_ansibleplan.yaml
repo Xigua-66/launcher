@@ -53,5 +53,6 @@ spec:
   cluster_name: test-cluster
   ssh_secret: test-ssh-secret
   Version: v1.26.4-es
+  support_python3: false
 
   # TODO(user): Add fields here
