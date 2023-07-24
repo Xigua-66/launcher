@@ -10,5 +10,48 @@ metadata:
   name: ansibleplan-sample
   namespace: test-capo
 spec:
-  foo: bar
+  type: install
+  install:
+    nodePools:
+      - name: node-1
+        ansibleHost: 192.168.0.1
+        ansibleIP: 192.168.0.1
+      - name: node-2
+        ansibleHost: 192.168.0.2
+        ansibleIP: 192.168.0.2
+      - name: node-3
+        ansibleHost: 192.168.0.3
+        ansibleIP: 192.168.0.3
+      - name: node-4
+        ansibleHost: 192.168.0.4
+        ansibleIP: 192.168.0.4
+    etcd:
+      - node-1
+      - node-2
+      - node-3
+    kubeMaster:
+      - node-1
+      - node-2
+      - node-3
+    kubeNode:
+      - node-4
+    kubeIngress:
+      - node-1
+    kubePrometheus:
+      - node-2
+    kubeLog:
+      - node-3
+    otherGroup:
+      ingress2:
+        - node-2
+    OtherAnsibleOpts:
+      ingress_virtual_vip: 127.0.0.1
+      master_virtual_vip: 127.0.0.1
+      registry_ip: 192.168.183.54
+  auto_run: true
+  done: false
+  cluster_name: test-cluster
+  ssh_secret: test-ssh-secret
+  Version: v1.26.4-es
+
   # TODO(user): Add fields here

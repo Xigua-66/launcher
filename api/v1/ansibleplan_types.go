@@ -39,6 +39,8 @@ type AnsiblePlanSpec struct {
 	ClusterName string `json:"cluster_name,omitempty"`
 	// SSHSecret is the ssh secret name
 	SSHSecret string `json:"ssh_secret"`
+	// Version is the version of the k8s
+	Version string `json:"version"`
 }
 
 type AnsibleInstall struct {
