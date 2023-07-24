@@ -109,14 +109,14 @@ func main() {
 	if err = (&controller.PlanReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr,concurrency(5)); err != nil {
+	}).SetupWithManager(mgr, concurrency(5)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Plan")
 		os.Exit(1)
 	}
 	if err = (&controller.AnsiblePlanReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr,concurrency(5)); err != nil {
+	}).SetupWithManager(mgr, concurrency(5)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AnsiblePlan")
 		os.Exit(1)
 	}

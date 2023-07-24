@@ -30,14 +30,13 @@ type AnsiblePlanSpec struct {
 	Type ExecType `json:"type"`
 	// NodePools are the node pools
 	Install *AnsibleInstall `json:"install,omitempty"`
-	// ProcessPID is the task of running linux  pid
-	ProcessPID *int32 `json:"process_pid,omitempty"`
 	// AutoRun is the flag to indicate the plan is auto run
 	AutoRun bool `json:"auto_run,omitempty"`
-	// Done is the flag to indicate the plan is done
+	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
+	// unless the plan operator is to take the initiative in changing the variable
 	Done bool `json:"done,omitempty"`
-	// Plan is the plan name
-	Plan string `json:"plan,omitempty"`
+	// ClusterName is the cluster name
+	ClusterName string `json:"cluster_name,omitempty"`
 	// SSHSecret is the ssh secret name
 	SSHSecret string `json:"ssh_secret"`
 }
@@ -46,7 +45,6 @@ type AnsibleInstall struct {
 	// NodePools are the node pools,we need print the config
 	// like this:
 	//# cat /etc/ansible/hosts
-	//node-1 ansible_ssh_host=22.200.2.196   ip=22.200.2.196 ansible_ssh_private_key_file=/root/196.key ansible_ssh_common_args="-o ProxyCommand=\"sshpass -p 'test@passw0rd' ssh -W %h:%p -q -p 22 root@172.50.0.144\""
 	NodePools []*AnsibleNode `json:"nodePools,omitempty"`
 	// Etcd is the etcd group
 	Etcd []string `json:"etcd,omitempty"`
@@ -61,7 +59,7 @@ type AnsibleInstall struct {
 	// KubeLog is the kube log group
 	KubeLog []string `json:"kubeLog,omitempty"`
 	// OtherGroup is the other group
-	OtherGroup map[string]string `json:"otherGroup,omitempty"`
+	OtherGroup map[string][]string `json:"otherGroup,omitempty"`
 	// OtherAnsibleOpts is the ansible custome vars
 	// OtherAnsibleOpts => ansible test/vars.yaml
 	OtherAnsibleOpts map[string]string `json:"other_ansible_opts,omitempty"`
@@ -74,6 +72,8 @@ type AnsibleNode struct {
 	AnsibleHost string `json:"ansibleHost,omitempty"`
 	// AnsibleIP is the ansible ip
 	AnsibleIP string `json:"ansibleIP,omitempty"`
+	// AnsibleSSHPrivateKeyFile is the ansible ssh private key file
+	AnsibleSSHPrivateKeyFile string `json:"ansibleSSHPrivateKeyFile,omitempty"`
 }
 
 // AnsiblePlanStatus defines the observed state of AnsiblePlan
@@ -111,8 +111,14 @@ type ExecType string
 const (
 	// ExecTypeInstall is the install type
 	ExecTypeInstall ExecType = "install"
-	// ExecTypeScale is the scale type
-	ExecTypeScale ExecType = "scale"
+	// ExecTypeRemove is the remove node type
+	ExecTypeRemove ExecType = "remove"
+	// ExecTypeUpgrade is the upgrade type
+	ExecTypeUpgrade ExecType = "upgrade"
+	// ExecTypeExpansion is the up scale type
+	ExecTypeExpansion ExecType = "expansion"
+	// ExecTypeReset is the reset type
+	ExecTypeReset ExecType = "reset"
 )
 
 //+kubebuilder:object:root=true

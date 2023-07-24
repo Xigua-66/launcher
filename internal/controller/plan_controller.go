@@ -720,7 +720,7 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 
 // SetupWithManager sets up the controller with the Manager.
 // need watch machine.
-func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager,options controller.Options) error {
+func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
 	ctx := context.Background()
 	machineToInfraFn := utils.MachineToInfrastructureMapFunc(ctx, mgr.GetClient())
 	return ctrl.NewControllerManagedBy(mgr).

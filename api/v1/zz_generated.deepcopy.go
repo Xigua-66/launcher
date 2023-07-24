@@ -70,6 +70,21 @@ func (in *AnsibleInstall) DeepCopyInto(out *AnsibleInstall) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.OtherGroup != nil {
+		in, out := &in.OtherGroup, &out.OtherGroup
+		*out = make(map[string][]string, len(*in))
+		for key, val := range *in {
+			var outVal []string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = make([]string, len(*in))
+				copy(*out, *in)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	if in.OtherAnsibleOpts != nil {
 		in, out := &in.OtherAnsibleOpts, &out.OtherAnsibleOpts
 		*out = make(map[string]string, len(*in))
@@ -170,11 +185,6 @@ func (in *AnsiblePlanSpec) DeepCopyInto(out *AnsiblePlanSpec) {
 		in, out := &in.Install, &out.Install
 		*out = new(AnsibleInstall)
 		(*in).DeepCopyInto(*out)
-	}
-	if in.ProcessPID != nil {
-		in, out := &in.ProcessPID, &out.ProcessPID
-		*out = new(int32)
-		**out = **in
 	}
 }
 

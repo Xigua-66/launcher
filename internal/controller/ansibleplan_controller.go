@@ -21,21 +21,17 @@ import (
 	"easystack.com/plan/pkg/utils"
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
 	"sigs.k8s.io/cluster-api/util/patch"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"time"
-
-	"github.com/shirou/gopsutil/process"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	easystackcomv1 "easystack.com/plan/api/v1"
 )
@@ -99,73 +95,31 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 		return ctrl.Result{}, err
 	}
 
-	//TODO get plan instance
-	var planInstance *easystackcomv1.Plan
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Namespace: ansible.Namespace,
-		Name:      ansible.Spec.Plan,
-	}, planInstance)
-
-	if err != nil {
-		log.Error(err, "get plan instance failed,check spec.cluster field")
-		return ctrl.Result{}, err
-	}
-
 	log.Info("Reconciling ansible plan resource")
 	if ansible.Spec.Done {
 		log.Info("ansible plan is done,skip reconcile")
 		return ctrl.Result{}, nil
 	}
 
-	if ansible.Spec.ProcessPID != nil {
-		log.Info("ansible plan is running,check status")
-		status, err := process.NewProcess(*ansible.Spec.ProcessPID)
-		if err != nil {
-			// TODO if pid is not found, set status to failed and restart new ansible plan process
-			if err == process.ErrorProcessNotRunning {
-				log.Info("ansible plan process is not running,reset status and restart new process")
-				// update status
-				ansible.Status.ProcessStatus.ProcessStatus = easystackcomv1.PIDStatusStop
-				ansible.Status.ProcessStatus.ProcessPID = nil
-				ansible.Status.ProcessData = ""
-				if err := patchHelper.Patch(ctx, ansible); err != nil {
-					return ctrl.Result{}, err
-				}
-				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	err := utils.GetOrCreateSSHkeyFile(ctx, r.Client, ansible)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
-			}
-			log.Error(err, "get process status failed but not excepted")
-			return ctrl.Result{}, err
-		}
-		ansible.Status.ProcessStatus.ProcessPID = &status.Pid
-		running, err := status.IsRunning()
-		if err != nil {
-			log.Error(err, "get process status exec failed")
-			return ctrl.Result{}, err
-		}
-		if running {
-			ansible.Status.ProcessStatus.ProcessStatus = easystackcomv1.PIDStatusRunning
-		} else {
-			ansible.Status.ProcessStatus.ProcessStatus = easystackcomv1.PIDStatusStop
-		}
-		ansible.Status.ProcessData = status.String()
-		if err := patchHelper.Patch(ctx, ansible); err != nil {
-			return ctrl.Result{}, err
-		}
+	err = utils.GetOrCreateInventoryFile(ctx, r.Client, ansible)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
-		return ctrl.Result{}, nil
+	err = utils.GetOrCreateVarsFile(ctx, r.Client, ansible)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
-	} else {
-		//TODO write ssh key from secret if not exist the private file
-		err := utils.GetOrCreateSSHkeyFile(ctx, r.Client, planInstance)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		//TODO write inventory to captain file
-
-		//TODO start ansible plan process,write pid log to file
-		//TODO writeback pid
-		//TODO update status
+	//TODO start ansible plan process,write pid log to file
+	err = utils.StartAnsiblePlan(ctx, r.Client, ansible)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -177,7 +131,7 @@ func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Lo
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AnsiblePlanReconciler) SetupWithManager(mgr ctrl.Manager,options controller.Options) error {
+func (r *AnsiblePlanReconciler) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(options).
 		For(
