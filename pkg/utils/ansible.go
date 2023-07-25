@@ -57,7 +57,7 @@ kube-node
 const AnsibleVars = `
 node_resources:
   {{range .Install.NodePools}}
-  {{.Name}}: {memory: -4}
+  {{.Name}}: {memory: {{.MemoryReserve}}}
   {{end}}
 hyperkube_image_tag: {{.Version}}
 {{range $key, $value := .Install.OtherAnsibleOpts}}

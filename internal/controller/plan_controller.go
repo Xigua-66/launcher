@@ -51,6 +51,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -319,12 +320,84 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	plan.Status.ServerGroupID = &ecnsv1.Servergroups{}
 	plan.Status.ServerGroupID.MasterServerGroupID = mastergroupID
 	plan.Status.ServerGroupID.WorkerServerGroupID = nodegroupID
+	err = utils.WaitAnsiblePlan(ctx, scope, r.Client, plan)
+	if err != nil {
+		plan.Status.VMDone = false
+		return ctrl.Result{}, err
+	}
 	plan.Status.VMDone = true
+	// Update status.InfraMachine and OpenstackMachineList
+	err = updatePlanStatus(ctx, scope, r.Client, plan)
+	if err != nil {
+		scope.Logger.Error(err, "update plan status error")
+		return ctrl.Result{}, err
+	}
 
 	// TODO check all machineset replicas is ready to num,create ansible plan
-	// 1.check status replicas
-	// 2.check ansible plan is exist,name=plan.Spec.ClusterName + plan.Spec.Version
+	// 1.create ansiblePLan cr
+	// 2.if ansiblePlan cr existed,which is different in plan to update ansiblePlan cr type and Done field.
+	ansiblePlanName := fmt.Sprintf("%s", plan.Name)
+	var ansiblePlan *ecnsv1.AnsiblePlan
+	err = r.Client.Get(ctx, types.NamespacedName{Name: ansiblePlanName, Namespace: plan.Namespace}, ansiblePlan)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// create ansiblePlan
+			scope.Logger.Info("Create ansiblePlan", "Namespace", plan.Namespace, "Name", ansiblePlanName)
+			ansible := utils.CreateAnsiblePlan(ctx, scope, r.Client, plan)
+			err = r.Client.Create(ctx, &ansible)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		} else {
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Compare plan with ansiblePlan to update ansiblePlan
+	err = syncAnsiblePlan(ctx, scope, r.Client, plan, ansiblePlan)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
+}
+
+// TODO sync ansiblePlan
+func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan, ansibleOld *ecnsv1.AnsiblePlan) error {
+
+	return nil
+
+}
+
+// TODO update plan status
+func updatePlanStatus(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan) error {
+	// get all machineset
+	machineSetList := &clusterapi.MachineSetList{}
+	labels := map[string]string{ecnsv1.MachineSetClusterLabelName: plan.Spec.ClusterName}
+	err := cli.List(ctx, machineSetList, client.InNamespace(plan.Namespace), client.MatchingLabels(labels))
+	if err != nil {
+		return err
+	}
+	for _, m := range machineSetList.Items {
+		labelsOpenstackMachine := map[string]string{clusterapi.MachineSetNameLabel: m.Name}
+		openstackMachineList := &clusteropenstackapis.OpenStackMachineList{}
+		err = cli.List(ctx, openstackMachineList, client.InNamespace(plan.Namespace), client.MatchingLabels(labelsOpenstackMachine))
+		if err != nil {
+			return err
+		}
+		plan.Status.OpenstackMachineList = append(plan.Status.OpenstackMachineList, openstackMachineList.Items...)
+		ips := make(map[string]string)
+		_, role, _ := strings.Cut(m.Name, plan.Spec.ClusterName)
+		for _, om := range openstackMachineList.Items {
+			ips[om.Name] = om.Status.Addresses[0].Address
+			plan.Status.InfraMachine = append(plan.Status.InfraMachine, ecnsv1.InfraMachine{
+				Role: role,
+				IPs:  ips,
+			})
+		}
+
+	}
+	return nil
 }
 
 // TODO sync app cre

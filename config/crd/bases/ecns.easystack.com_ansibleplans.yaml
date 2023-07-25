@@ -94,6 +94,11 @@ spec:
                           description: AnsibleSSHPrivateKeyFile is the ansible ssh
                             private key file
                           type: string
+                        memoryReserve:
+                          description: MemoryReserve is the memory reserve(GB),default
+                            is -4,always < 0.
+                          format: int64
+                          type: integer
                         name:
                           description: Name is the name of the node
                           type: string

@@ -12,6 +12,7 @@ metadata:
 spec:
   mode: "new"
   k8sVersion: "1.20.14"
+  support_python3: false
   cluster_name: "test1"
   ssh_key: "jian"
   use_float_ip: false

@@ -76,6 +76,8 @@ type AnsibleNode struct {
 	AnsibleHost string `json:"ansibleHost,omitempty"`
 	// AnsibleIP is the ansible ip
 	AnsibleIP string `json:"ansibleIP,omitempty"`
+	// MemoryReserve is the memory reserve(GB),default is -4,always < 0.
+	MemoryReserve int64 `json:"memoryReserve,omitempty"`
 	// AnsibleSSHPrivateKeyFile is the ansible ssh private key file
 	AnsibleSSHPrivateKeyFile string `json:"ansibleSSHPrivateKeyFile,omitempty"`
 }
