@@ -94,6 +94,11 @@ spec:
                           description: AnsibleSSHPrivateKeyFile is the ansible ssh
                             private key file
                           type: string
+                        memoryReserve:
+                          description: MemoryReserve is the memory reserve(GB),default
+                            is -4,always < 0.
+                          format: int64
+                          type: integer
                         name:
                           description: Name is the name of the node
                           type: string
@@ -116,13 +121,22 @@ spec:
               ssh_secret:
                 description: SSHSecret is the ssh secret name
                 type: string
+              support_python3:
+                description: SupportPython3 is the flag to indicate the Host support
+                  python3(default python is python3)
+                type: boolean
               type:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file'
                 type: string
+              version:
+                description: Version is the version of the k8s
+                type: string
             required:
             - ssh_secret
+            - support_python3
             - type
+            - version
             type: object
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan

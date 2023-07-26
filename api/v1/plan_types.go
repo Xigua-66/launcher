@@ -46,7 +46,8 @@ const (
 	WorkSetRole       = "node"
 	PrometheusSetRole = "prometheus"
 	IngressSetRole    = "ingress"
-	LOgSetRole        = "log"
+	LogSetRole        = "log"
+	Etcd              = "etcd"
 )
 
 type NetWorkMode string
@@ -69,6 +70,9 @@ type PlanSpec struct {
 
 	// K8sVersion is the version of kubernetes => ansible kubernetes tag
 	K8sVersion string `json:"k8sVersion"`
+
+	// SupportPython3 is the flag to decide to ansible use python3 version
+	SupportPython3 bool `json:"support_python3"`
 
 	// ClusterName is the cluster name => clusters.cluster.x-k8s.io
 	// --------------------------------=> openstackclusters.infrastructure.cluster.x-k8s.io
@@ -97,9 +101,6 @@ type PlanSpec struct {
 	// Monitor is the pvc config of etcd
 	Monitor MonitorConfig `json:"monitor"`
 
-	// Repo is the repo of hub
-	Repo string `json:"repo"`
-
 	// CniType is the cni type
 	CniType string `json:"cni_type"`
 
@@ -107,10 +108,10 @@ type PlanSpec struct {
 	CniWorkMode string `json:"cni_work_mode,omitempty"`
 
 	// PodCidr is the pod cidr
-	PodCidr string `json:"pod_cidr"`
+	PodCidr string `json:"pod_cidr,omitempty"`
 
 	//SvcCidr is the svc cidr
-	SvcCidr string `json:"svc_cidr"`
+	SvcCidr string `json:"svc_cidr,omitempty"`
 
 	// OtherAnsibleOpts is the ansible custome vars
 	// OtherAnsibleOpts => ansible test/vars.yaml
@@ -212,6 +213,17 @@ type PlanStatus struct {
 	ServerGroupID *Servergroups `json:"server_group_id,omitempty"`
 	// VMDone show the vm is created or not
 	VMDone bool `json:"vm_done,omitempty"`
+	// OpenstackMachineList is the list of openstack machine
+	OpenstackMachineList []clusteropenstack.OpenStackMachine `json:"openstack_machine_list,omitempty"`
+	// InfraMachine is the list of infra machine
+	InfraMachine []InfraMachine `json:"infra_machine,omitempty"`
+}
+
+type InfraMachine struct {
+	// Role is the role of machine
+	Role string `json:"role"`
+	// IPs is the ips of machine,key is the instance name(openstackMachine name),value is the ip
+	IPs map[string]string `json:"ips"`
 }
 
 type Servergroups struct {

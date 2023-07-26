@@ -1,11 +1,15 @@
 package utils
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"fmt"
+	"io"
+	"log"
 	"os"
+	"os/exec"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"text/template"
 )
@@ -51,7 +55,12 @@ kube-node
 `
 
 const AnsibleVars = `
-{{range $key, $value := .OtherAnsibleOpts}}
+node_resources:
+  {{range .Install.NodePools}}
+  {{.Name}}: {memory: {{.MemoryReserve}}}
+  {{end}}
+hyperkube_image_tag: {{.Version}}
+{{range $key, $value := .Install.OtherAnsibleOpts}}
 {{$key}}: {{$value}}
 {{end}}
 `
@@ -96,7 +105,7 @@ func GetOrCreateVarsFile(ctx context.Context, cli client.Client, ansible *ecnsv1
 	}
 	var buf bytes.Buffer
 	// Execute the template and write the output to the file
-	err = t.Execute(&buf, ansible.Spec.Install)
+	err = t.Execute(&buf, ansible.Spec)
 	if err != nil {
 		return err
 	}
@@ -128,5 +137,72 @@ func GetOrCreateVarsFile(ctx context.Context, cli client.Client, ansible *ecnsv1
 // 2.print ansible log to one log file by ansible cr uid(one cluster only has one log file)
 // 3.WAIT ANSIBLE task RETURN RESULT AND UPDATE ANSIBLE CR DONE=TRUE
 func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.AnsiblePlan) error {
+	var playbook string
+	if ansible.Spec.Type == ecnsv1.ExecTypeInstall {
+		playbook = "cluster.yml"
+	}
+	if ansible.Spec.Type == ecnsv1.ExecTypeExpansion {
+		playbook = "scale.yml"
+	}
+	if ansible.Spec.Type == ecnsv1.ExecTypeUpgrade {
+		playbook = "extra_playbooks/upgrade-etcd-k8s.yml"
+	}
+	if ansible.Spec.Type == ecnsv1.ExecTypeRemove {
+		playbook = "remove-node.yml"
+	}
+	if ansible.Spec.Type == ecnsv1.ExecTypeReset {
+		playbook = "reset.yml"
+	}
+	var inventory = fmt.Sprintf("/tmp/%s", ansible.UID)
+	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", `"@`+fmt.Sprintf("/tmp/%s.vars", ansible.UID)+`"`)
+	// TODO cmd.Dir need to be change when python version change.
+	if ansible.Spec.SupportPython3 {
+		cmd.Dir = "/opt/captain3"
+	} else {
+		cmd.Dir = "/opt/captain"
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	var logfile = fmt.Sprintf("/tmp/%s.log", ansible.UID)
+	var logFile *os.File
+	defer logFile.Close()
+	if !FileExist(logfile) {
+		// if log file not exist,create it and get io.writer
+		logFile, err = os.Create(logfile)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		// if log file exist,open it and get io.writer
+		logFile, err = os.OpenFile(logfile, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+	}
+	var stdoutCopy = bufio.NewWriter(logFile)
+	_, err = io.Copy(stdoutCopy, stdout)
+	if err != nil {
+		return err
+	}
+	if err = cmd.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			log.Printf("Exit Status: %v", exiterr)
+		} else {
+			log.Fatalf("cmd.Wait: %v", err)
+		}
+		stdoutCopy.Flush()
+		ansible.Spec.Done = false
+		return err
+	}
+	stdoutCopy.Flush()
+	ansible.Spec.Done = true
+
 	return nil
 }

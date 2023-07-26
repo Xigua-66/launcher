@@ -39,6 +39,10 @@ type AnsiblePlanSpec struct {
 	ClusterName string `json:"cluster_name,omitempty"`
 	// SSHSecret is the ssh secret name
 	SSHSecret string `json:"ssh_secret"`
+	// Version is the version of the k8s
+	Version string `json:"version"`
+	// SupportPython3 is the flag to indicate the Host support python3(default python is python3)
+	SupportPython3 bool `json:"support_python3"`
 }
 
 type AnsibleInstall struct {
@@ -72,6 +76,8 @@ type AnsibleNode struct {
 	AnsibleHost string `json:"ansibleHost,omitempty"`
 	// AnsibleIP is the ansible ip
 	AnsibleIP string `json:"ansibleIP,omitempty"`
+	// MemoryReserve is the memory reserve(GB),default is -4,always < 0.
+	MemoryReserve int64 `json:"memoryReserve,omitempty"`
 	// AnsibleSSHPrivateKeyFile is the ansible ssh private key file
 	AnsibleSSHPrivateKeyFile string `json:"ansibleSSHPrivateKeyFile,omitempty"`
 }
