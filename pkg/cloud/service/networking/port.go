@@ -38,6 +38,21 @@ const (
 	retryIntervalPortDelete = 5 * time.Second
 )
 
+// UpdatePortAllowedAddressPairs updates the allowed address pairs of the port with the given ID.
+func (s *Service) UpdatePortAllowedAddressPairs(portID string, ip string) error {
+	var addressPairs []ports.AddressPair
+	addressPairs = append(addressPairs, ports.AddressPair{
+		IPAddress: ip,
+	})
+	_, err := s.client.UpdatePort(portID, ports.UpdateOpts{
+		AllowedAddressPairs: &addressPairs,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetPortFromInstanceIP returns at most one port attached to the instance with given ID
 // and with the IP address provided.
 func (s *Service) GetPortFromInstanceIP(instanceID string, ip string) ([]ports.Port, error) {

@@ -310,7 +310,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			return ctrl.Result{}, err
 		}
 		// skip create machineSet
-		scope.Logger.Info("Skip create machineSet","Role",set.Role, "Namespace", machineSetNamespace, "Name", machineSetName)
+		scope.Logger.Info("Skip create machineSet", "Role", set.Role, "Namespace", machineSetNamespace, "Name", machineSetName)
 	}
 
 	// get or create HA port if needed
@@ -415,6 +415,25 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		return ctrl.Result{}, err
 	}
 
+	// update master role ports allowed-address-pairs
+	if !plan.Spec.LBEnable {
+		for index, set := range plan.Status.InfraMachine {
+			if set.Role == "master" {
+				for _, portID := range plan.Status.InfraMachine[index].PortIDs {
+					service, err := networking.NewService(scope)
+					if err != nil {
+						return ctrl.Result{}, err
+					}
+					err = service.UpdatePortAllowedAddressPairs(portID, plan.Status.HAPrivateIP)
+					if err != nil {
+						return ctrl.Result{}, err
+					}
+					scope.Logger.Info("Update master vip port", "ClusterName", plan.Spec.ClusterName, "Port", portID)
+				}
+			}
+		}
+	}
+
 	// TODO check all machineset replicas is ready to num,create ansible plan
 	// 1.create ansiblePLan cr
 	// 2.if ansiblePlan cr existed,which is different in plan to update ansiblePlan cr type and Done field.
@@ -471,13 +490,25 @@ func updatePlanStatus(ctx context.Context, scope *scope.Scope, cli client.Client
 		}
 		plan.Status.OpenstackMachineList = append(plan.Status.OpenstackMachineList, openstackMachineList.Items...)
 		ips := make(map[string]string)
+		var Ports []string
 		_, role, _ := strings.Cut(m.Name, plan.Spec.ClusterName)
 		for _, om := range openstackMachineList.Items {
 			ips[om.Name] = om.Status.Addresses[0].Address
+			// get port information from openstack machine
+			service, err := networking.NewService(scope)
+			if err != nil {
+				return err
+			}
+			port, err := service.GetPortFromInstanceIP(*om.Spec.InstanceID, om.Status.Addresses[0].Address)
+			if err != nil {
+				return err
+			}
+			Ports = append(Ports, port[0].ID)
 		}
 		plan.Status.InfraMachine = append(plan.Status.InfraMachine, ecnsv1.InfraMachine{
-			Role: role,
-			IPs:  ips,
+			Role:    role,
+			PortIDs: Ports,
+			IPs:     ips,
 		})
 	}
 	return nil
@@ -927,8 +958,12 @@ func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager, options controller.O
 
 func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan) error {
 	// List all machineset for this plan
+	err := deleteHA(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
 
-	err := deleteCluster(ctx, r.Client, scope, plan)
+	err = deleteCluster(ctx, r.Client, scope, plan)
 	if err != nil {
 		return err
 	}
@@ -963,10 +998,6 @@ func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Sc
 		return err
 	}
 
-	err = deleteHA(ctx, r.Client, scope, plan)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

@@ -231,6 +231,8 @@ type PlanStatus struct {
 type InfraMachine struct {
 	// Role is the role of machine
 	Role string `json:"role"`
+	// PortIDs is the port id of machines
+	PortIDs []string `json:"port_ids"`
 	// IPs is the ips of machine,key is the instance name(openstackMachine name),value is the ip
 	IPs map[string]string `json:"ips"`
 }
