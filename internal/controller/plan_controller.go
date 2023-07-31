@@ -386,7 +386,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			cluster.Spec.ControlPlaneEndpoint.Host = plan.Status.HAPrivateIP
 		}
 		cluster.Spec.ControlPlaneEndpoint.Port = 6443
-		err = utils.PatchCluster(ctx, r.Client, &cluster, origin)
+		err = utils.PatchCluster(ctx, r.Client, origin, &cluster)
 		if err != nil {
 			scope.Logger.Info("Update cluster failed", "ClusterName", plan.Spec.ClusterName, "Endpoint", cluster.Spec.ControlPlaneEndpoint.Host)
 			return ctrl.Result{}, err
