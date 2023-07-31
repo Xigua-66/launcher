@@ -68,6 +68,9 @@ type PlanSpec struct {
 
 	NetMode NetWorkMode `json:"mode"`
 
+	//LBEnable is the flag to decide to create lb or no
+	LBEnable bool `json:"lb_enable"`
+
 	// K8sVersion is the version of kubernetes => ansible kubernetes tag
 	K8sVersion string `json:"k8sVersion"`
 
@@ -217,6 +220,12 @@ type PlanStatus struct {
 	OpenstackMachineList []clusteropenstack.OpenStackMachine `json:"openstack_machine_list,omitempty"`
 	// InfraMachine is the list of infra machine
 	InfraMachine []InfraMachine `json:"infra_machine,omitempty"`
+	// HAPortID is the port id of HA
+	HAPortID string `json:"ha_port_id,omitempty"`
+	// HAPrivateIP is the ip of HA
+	HAPrivateIP string `json:"ha_private_ip,omitempty"`
+	// HAPublicIP is the public ip of HA
+	HAPublicIP string `json:"ha_public_ip,omitempty"`
 }
 
 type InfraMachine struct {
