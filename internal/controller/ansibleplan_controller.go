@@ -144,12 +144,16 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 }
 
 func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
-
+	err := deleteAnsibleSSHKeySecret(ctx, r.Client, ansible)
+	if err != nil {
+		log.Error(err, "Delete ansible ssh key secret failed")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
 
-func deleteAnsibleSSHKeySecert(ctx context.Context, client client.Client, ansible *ecnsv1.AnsiblePlan) error {
+func deleteAnsibleSSHKeySecret(ctx context.Context, client client.Client, ansible *ecnsv1.AnsiblePlan) error {
 	secretName := ansible.Spec.SSHSecret
 	//get secret by name secretName
 	secret := &corev1.Secret{}
