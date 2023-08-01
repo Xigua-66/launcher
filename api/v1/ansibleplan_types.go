@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type Inter interface{}
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -31,18 +32,18 @@ type AnsiblePlanSpec struct {
 	// NodePools are the node pools
 	Install *AnsibleInstall `json:"install,omitempty"`
 	// AutoRun is the flag to indicate the plan is auto run
-	AutoRun bool `json:"auto_run,omitempty"`
+	AutoRun bool `json:"autoRun,omitempty"`
 	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
 	// unless the plan operator is to take the initiative in changing the variable
 	Done bool `json:"done,omitempty"`
 	// ClusterName is the cluster name
-	ClusterName string `json:"cluster_name,omitempty"`
+	ClusterName string `json:"clusterName,omitempty"`
 	// SSHSecret is the ssh secret name
-	SSHSecret string `json:"ssh_secret"`
+	SSHSecret string `json:"sshSecret"`
 	// Version is the version of the k8s
 	Version string `json:"version"`
 	// SupportPython3 is the flag to indicate the Host support python3(default python is python3)
-	SupportPython3 bool `json:"support_python3"`
+	SupportPython3 bool `json:"supportPython3"`
 }
 
 type AnsibleInstall struct {

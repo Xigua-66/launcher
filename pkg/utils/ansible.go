@@ -17,7 +17,7 @@ import (
 const AnsibleInventory = `## Configure 'ip' variable to bind kubernetes services on a
 ## different ip than the default iface
 {{range .NodePools}}
-{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}}
+{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}} ansible_user=root
 {{end}}
 [kube-master]
 {{range .KubeMaster}}
@@ -154,7 +154,7 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 		playbook = "reset.yml"
 	}
 	var inventory = fmt.Sprintf("/tmp/%s", ansible.UID)
-	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", `"@`+fmt.Sprintf("/tmp/%s.vars", ansible.UID)+`"`)
+	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", "@"+fmt.Sprintf("/tmp/%s.vars", ansible.UID))
 	// TODO cmd.Dir need to be change when python version change.
 	if ansible.Spec.SupportPython3 {
 		cmd.Dir = "/opt/captain3"
@@ -193,7 +193,7 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 	}
 	if err = cmd.Wait(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
-			log.Printf("Exit Status: %v", exiterr)
+			log.Printf("Exit Status: %v, For more logs please check the file %s", exiterr, logfile)
 		} else {
 			log.Fatalf("cmd.Wait: %v", err)
 		}

@@ -5,18 +5,19 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	ecnsv1 "easystack.com/plan/api/v1"
 	"encoding/pem"
 	"fmt"
+	"os"
+	"strings"
+
+	ecnsv1 "easystack.com/plan/api/v1"
+
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
-	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const SSHSecretSuffix = "-default-ssh"
@@ -29,7 +30,6 @@ func MakeSSHKeyPair() (string, string, error) {
 
 	// generate and write private key as PEM
 	var privKeyBuf strings.Builder
-
 	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
 	if err := pem.Encode(&privKeyBuf, privateKeyPEM); err != nil {
 		return "", "", err
@@ -105,16 +105,24 @@ func GetOrCreateSSHkeyFile(ctx context.Context, cli client.Client, ansible *ecns
 		}
 	}
 	// get public key and private key
-	_, pri, err := GetSecretByName(context.Background(), cli, ansible.Spec.SSHSecret, ansible.Namespace)
-	if err != nil {
-		return err
-	}
-	// create file
-	err = ioutil.WriteFile(path, []byte(pri), 0600)
+	_, pri, err := GetSecretByName(context.Background(),  cli, ansible.Spec.SSHSecret, ansible.Namespace)
 	if err != nil {
 		return err
 	}
 
+	// create file
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+    if err != nil {
+       return err
+    }
+
+	defer file.Close()
+
+	_, err = file.Write([]byte(pri))
+    if err != nil {
+        return err
+    }
+	
 	for i, pool := range ansible.Spec.Install.NodePools {
 		if pool.AnsibleSSHPrivateKeyFile == "" {
 			ansible.Spec.Install.NodePools[i].AnsibleSSHPrivateKeyFile = path
