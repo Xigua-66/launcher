@@ -329,8 +329,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		portName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, "keepalived_vip_eth0")
 		var sg []clusteropenstackapis.SecurityGroupParam
 		sg = append(sg, clusteropenstackapis.SecurityGroupParam{
-			Name: openstackCluster.Status.ControlPlaneSecurityGroup.Name,
-			UUID: openstackCluster.Status.ControlPlaneSecurityGroup.ID,
+			Name: "default",
 		})
 		securityGroups, err := service.GetSecurityGroups(sg)
 		if err != nil {
@@ -418,7 +417,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	// update master role ports allowed-address-pairs
 	if !plan.Spec.LBEnable {
 		for index, set := range plan.Status.InfraMachine {
-			if set.Role == "master" {
+			if SetNeedKeepAlived(set.Role, plan.Spec.NeedKeepAlive) {
 				for _, portID := range plan.Status.InfraMachine[index].PortIDs {
 					service, err := networking.NewService(scope)
 					if err != nil {
@@ -428,7 +427,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 					if err != nil {
 						return ctrl.Result{}, err
 					}
-					scope.Logger.Info("Update master vip port", "ClusterName", plan.Spec.ClusterName, "Port", portID)
+					scope.Logger.Info("Update vip port", "ClusterName", plan.Spec.ClusterName, "Port", portID)
 				}
 			}
 		}
@@ -461,6 +460,16 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func SetNeedKeepAlived(role string, alive []string) bool {
+	for _, a := range alive {
+		if a == role {
+			return true
+		}
+	}
+	return false
+
 }
 
 // TODO sync ansiblePlan
@@ -997,7 +1006,6 @@ func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Sc
 	if err != nil {
 		return err
 	}
-
 
 	return nil
 }

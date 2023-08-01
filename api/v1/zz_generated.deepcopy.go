@@ -422,6 +422,11 @@ func (in *PlanSpec) DeepCopyInto(out *PlanSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.NeedKeepAlive != nil {
+		in, out := &in.NeedKeepAlive, &out.NeedKeepAlive
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.MachineSets != nil {
 		in, out := &in.MachineSets, &out.MachineSets
 		*out = make([]*MachineSetReconcile, len(*in))

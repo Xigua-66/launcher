@@ -99,6 +99,9 @@ type PlanSpec struct {
 	// NodeCIDR is the node cidr of subnet which auto created
 	NodeCIDR string `json:"node_cidr,omitempty"`
 
+	// NeedKeepAlive is the flag to decide to keep alive the machine_sets role
+	NeedKeepAlive []string `json:"need_keep_alive"`
+
 	MachineSets []*MachineSetReconcile `json:"machine_sets"`
 
 	// Monitor is the pvc config of etcd
@@ -230,11 +233,11 @@ type PlanStatus struct {
 
 type InfraMachine struct {
 	// Role is the role of machine
-	Role string `json:"role"`
+	Role string `json:"role,omitempty"`
 	// PortIDs is the port id of machines
-	PortIDs []string `json:"port_ids"`
+	PortIDs []string `json:"port_ids,omitempty"`
 	// IPs is the ips of machine,key is the instance name(openstackMachine name),value is the ip
-	IPs map[string]string `json:"ips"`
+	IPs map[string]string `json:"ips,omitempty"`
 }
 
 type Servergroups struct {
