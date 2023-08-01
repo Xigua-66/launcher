@@ -35,10 +35,10 @@ spec:
           spec:
             description: AnsiblePlanSpec defines the desired state of AnsiblePlan
             properties:
-              auto_run:
+              autoRun:
                 description: AutoRun is the flag to indicate the plan is auto run
                 type: boolean
-              cluster_name:
+              clusterName:
                 description: ClusterName is the cluster name
                 type: string
               done:
@@ -104,9 +104,8 @@ spec:
                           type: string
                       type: object
                     type: array
-                  other_ansible_opts:
-                    additionalProperties:
-                      type: string
+                  otherAnsibleOpts:
+                    additionalProperties: {}
                     description: OtherAnsibleOpts is the ansible custome vars OtherAnsibleOpts
                       => ansible test/vars.yaml
                     type: object
@@ -118,10 +117,10 @@ spec:
                     description: OtherGroup is the other group
                     type: object
                 type: object
-              ssh_secret:
+              sshSecret:
                 description: SSHSecret is the ssh secret name
                 type: string
-              support_python3:
+              supportPython3:
                 description: SupportPython3 is the flag to indicate the Host support
                   python3(default python is python3)
                 type: boolean
@@ -133,8 +132,8 @@ spec:
                 description: Version is the version of the k8s
                 type: string
             required:
-            - ssh_secret
-            - support_python3
+            - sshSecret
+            - supportPython3
             - type
             - version
             type: object
