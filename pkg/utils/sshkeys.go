@@ -105,7 +105,7 @@ func GetOrCreateSSHkeyFile(ctx context.Context, cli client.Client, ansible *ecns
 		}
 	}
 	// get public key and private key
-	_, pri, err := GetSecretByName(context.Background(),  cli, ansible.Spec.SSHSecret, ansible.Namespace)
+	_, pri, err := GetSecretByName(context.Background(), cli, ansible.Spec.SSHSecret, ansible.Namespace)
 	if err != nil {
 		return err
 	}
