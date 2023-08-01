@@ -13,10 +13,13 @@ spec:
   mode: "existed"
   k8sVersion: "1.20.14"
   support_python3: false
+  lb_enable: true
   cluster_name: "test2"
-  ssh_key: "jian"
+  ssh_key: "binshan"
   use_float_ip: true
   external_network_id: "822abc64-050a-4d50-b5fa-5e8027d2cf57"
+  need_keep_alive:
+    - "master"
   dns_nameservers:
     - "8.8.8.8"
     - "114.114.114.114"
@@ -90,14 +93,13 @@ spec:
     pvc_type: "hdd"
     pvc_cap: "10"
     auto_clear_days: "7"
-  repo: "hub.easystack.io"
   cni_type: "flannel"
   pod_cidr: "10.232.0.0/14"
   svc_cidr: "10.222.0.0/16"
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkuM5Tl6KzZI2z4_dBXkkogasUebL-v7rOK57ivamVfs5vDnK8qZmpTjRJu0Z9CVC467LALRI6C4JtcMagYeusffyzyJ6WWloVcsfxgQRccm9YM-M8Z5Uc2Uawh56MbxIpsQM9zlXG8AHrW1x0kyw0JiklBfEU0ZVDRAUBM6NdMat5Jak"
+    token: "gAAAAABkyKQ-E003YEmTftLWlL6FC4F_iB8KDUtSNDbxhfi2P5QJ7P1nRqfwxz8acFIYgOW8J-p-JTyUkEeuvnRXsJJuT8QB0LtHF5ALSEsY8MFWVwIzisonH8xclbovtR7MpfWUqj07mUxVdmqM1pim0IYMXciTMd14E5qKosbMRWmzCWaAC44"
     region: "RegionOne"
 
 

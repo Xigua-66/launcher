@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
+	"easystack.com/plan/pkg/cloud/service/networking"
 	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
@@ -309,7 +310,87 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			return ctrl.Result{}, err
 		}
 		// skip create machineSet
-		scope.Logger.Info("Skip create machineSet")
+		scope.Logger.Info("Skip create machineSet", "Role", set.Role, "Namespace", machineSetNamespace, "Name", machineSetName)
+	}
+
+	// get or create HA port if needed
+	if !plan.Spec.LBEnable {
+		service, err := networking.NewService(scope)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		// get openstack cluster network
+		var openstackCluster clusteropenstackapis.OpenStackCluster
+		err = r.Client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &openstackCluster)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		net := openstackCluster.Status.Network
+		portName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, "keepalived_vip_eth0")
+		var sg []clusteropenstackapis.SecurityGroupParam
+		sg = append(sg, clusteropenstackapis.SecurityGroupParam{
+			Name: "default",
+		})
+		securityGroups, err := service.GetSecurityGroups(sg)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("error getting security groups: %v", err)
+		}
+		keepPortTag := []string{"keepAlive", plan.Spec.ClusterName}
+		var adminStateUp bool = false
+		port, err := service.GetOrCreatePort(plan, plan.Spec.ClusterName, portName, *net, &securityGroups, keepPortTag, &adminStateUp)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		fip, err := service.GetFloatingIPByPortID(port.ID)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		plan.Status.HAPortID = port.ID
+		plan.Status.HAPrivateIP = port.FixedIPs[0].IPAddress
+		if fip != nil {
+			// port has fip
+			plan.Status.HAPublicIP = fip.FloatingIP
+		} else {
+			// port has no fip
+			// create fip
+			if plan.Spec.UseFloatIP {
+				var fipAddress string
+				if plan.Status.HAPublicIP != "" {
+					fipAddress = plan.Status.HAPublicIP
+				}
+				f, err := service.GetOrCreateFloatingIP(&openstackCluster, &openstackCluster, port.ID, fipAddress)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				// set status
+				plan.Status.HAPublicIP = f.FloatingIP
+				err = service.AssociateFloatingIP(&openstackCluster, f, port.ID)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+
+		}
+		// update cluster status
+		var cluster clusterapi.Cluster
+		err = r.Client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &cluster)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		origin := cluster.DeepCopy()
+		if plan.Status.HAPublicIP != "" {
+			cluster.Spec.ControlPlaneEndpoint.Host = plan.Status.HAPublicIP
+
+		} else {
+			cluster.Spec.ControlPlaneEndpoint.Host = plan.Status.HAPrivateIP
+		}
+		cluster.Spec.ControlPlaneEndpoint.Port = 6443
+		err = utils.PatchCluster(ctx, r.Client, origin, &cluster)
+		if err != nil {
+			scope.Logger.Info("Update cluster failed", "ClusterName", plan.Spec.ClusterName, "Endpoint", cluster.Spec.ControlPlaneEndpoint.Host)
+			return ctrl.Result{}, err
+		}
+		scope.Logger.Info("Update cluster status", "ClusterName", plan.Spec.ClusterName, "Endpoint", cluster.Spec.ControlPlaneEndpoint.Host)
 	}
 
 	// Reconcile every machineset replicas
@@ -333,12 +414,31 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		return ctrl.Result{}, err
 	}
 
+	// update master role ports allowed-address-pairs
+	if !plan.Spec.LBEnable {
+		for index, set := range plan.Status.InfraMachine {
+			if SetNeedKeepAlived(set.Role, plan.Spec.NeedKeepAlive) {
+				for _, portID := range plan.Status.InfraMachine[index].PortIDs {
+					service, err := networking.NewService(scope)
+					if err != nil {
+						return ctrl.Result{}, err
+					}
+					err = service.UpdatePortAllowedAddressPairs(portID, plan.Status.HAPrivateIP)
+					if err != nil {
+						return ctrl.Result{}, err
+					}
+					scope.Logger.Info("Update vip port", "ClusterName", plan.Spec.ClusterName, "Port", portID)
+				}
+			}
+		}
+	}
+
 	// TODO check all machineset replicas is ready to num,create ansible plan
 	// 1.create ansiblePLan cr
 	// 2.if ansiblePlan cr existed,which is different in plan to update ansiblePlan cr type and Done field.
 	ansiblePlanName := fmt.Sprintf("%s", plan.Name)
-	var ansiblePlan *ecnsv1.AnsiblePlan
-	err = r.Client.Get(ctx, types.NamespacedName{Name: ansiblePlanName, Namespace: plan.Namespace}, ansiblePlan)
+	var ansiblePlan ecnsv1.AnsiblePlan
+	err = r.Client.Get(ctx, types.NamespacedName{Name: ansiblePlanName, Namespace: plan.Namespace}, &ansiblePlan)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// create ansiblePlan
@@ -354,12 +454,22 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	}
 
 	// Compare plan with ansiblePlan to update ansiblePlan
-	err = syncAnsiblePlan(ctx, scope, r.Client, plan, ansiblePlan)
+	err = syncAnsiblePlan(ctx, scope, r.Client, plan, &ansiblePlan)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func SetNeedKeepAlived(role string, alive []string) bool {
+	for _, a := range alive {
+		if a == role {
+			return true
+		}
+	}
+	return false
+
 }
 
 // TODO sync ansiblePlan
@@ -378,6 +488,8 @@ func updatePlanStatus(ctx context.Context, scope *scope.Scope, cli client.Client
 	if err != nil {
 		return err
 	}
+	plan.Status.OpenstackMachineList = nil
+	plan.Status.InfraMachine = nil
 	for _, m := range machineSetList.Items {
 		labelsOpenstackMachine := map[string]string{clusterapi.MachineSetNameLabel: m.Name}
 		openstackMachineList := &clusteropenstackapis.OpenStackMachineList{}
@@ -387,15 +499,26 @@ func updatePlanStatus(ctx context.Context, scope *scope.Scope, cli client.Client
 		}
 		plan.Status.OpenstackMachineList = append(plan.Status.OpenstackMachineList, openstackMachineList.Items...)
 		ips := make(map[string]string)
+		var Ports []string
 		_, role, _ := strings.Cut(m.Name, plan.Spec.ClusterName)
 		for _, om := range openstackMachineList.Items {
 			ips[om.Name] = om.Status.Addresses[0].Address
-			plan.Status.InfraMachine = append(plan.Status.InfraMachine, ecnsv1.InfraMachine{
-				Role: role,
-				IPs:  ips,
-			})
+			// get port information from openstack machine
+			service, err := networking.NewService(scope)
+			if err != nil {
+				return err
+			}
+			port, err := service.GetPortFromInstanceIP(*om.Spec.InstanceID, om.Status.Addresses[0].Address)
+			if err != nil {
+				return err
+			}
+			Ports = append(Ports, port[0].ID)
 		}
-
+		plan.Status.InfraMachine = append(plan.Status.InfraMachine, ecnsv1.InfraMachine{
+			Role:    role,
+			PortIDs: Ports,
+			IPs:     ips,
+		})
 	}
 	return nil
 }
@@ -487,9 +610,13 @@ func syncCreateCluster(ctx context.Context, client client.Client, plan *ecnsv1.P
 			cluster.Spec.ClusterNetwork.Pods = &clusterapi.NetworkRanges{}
 			cluster.Spec.ClusterNetwork.Pods.CIDRBlocks = []string{plan.Spec.PodCidr}
 			cluster.Spec.ClusterNetwork.ServiceDomain = "cluster.local"
-			cluster.Spec.ControlPlaneEndpoint = clusterapi.APIEndpoint{
-				Host: "0.0.0.0",
-				Port: 6443,
+			// if LBEnable is true,dont set the ControlPlaneEndpoint
+			// else set the ControlPlaneEndpoint to keepalived VIP
+			if !plan.Spec.LBEnable {
+				cluster.Spec.ControlPlaneEndpoint = clusterapi.APIEndpoint{
+					Host: "0.0.0.0",
+					Port: 6443,
+				}
 			}
 			cluster.Spec.InfrastructureRef = &corev1.ObjectReference{}
 			cluster.Spec.InfrastructureRef.APIVersion = "infrastructure.cluster.x-k8s.io/v1alpha6"
@@ -516,14 +643,20 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			// TODO create openstackcluster resource
 			openstackCluster.Name = plan.Spec.ClusterName
 			openstackCluster.Namespace = plan.Namespace
-			openstackCluster.Spec.DisableAPIServerFloatingIP = true
-			openstackCluster.Spec.APIServerLoadBalancer.Enabled = false
-			openstackCluster.Spec.APIServerFixedIP = "0.0.0.0"
+			if plan.Spec.LBEnable {
+				openstackCluster.Spec.APIServerLoadBalancer.Enabled = true
+			} else {
+				openstackCluster.Spec.APIServerLoadBalancer.Enabled = false
+				openstackCluster.Spec.ControlPlaneEndpoint.Host = "0.0.0.0"
+				openstackCluster.Spec.ControlPlaneEndpoint.Port = 6443
+			}
 			openstackCluster.Spec.CloudName = plan.Spec.ClusterName
 			openstackCluster.Spec.DNSNameservers = plan.Spec.DNSNameservers
 			if plan.Spec.UseFloatIP == true {
+				openstackCluster.Spec.DisableAPIServerFloatingIP = false
 				openstackCluster.Spec.ExternalNetworkID = plan.Spec.ExternalNetworkId
 			} else {
+				openstackCluster.Spec.DisableAPIServerFloatingIP = true
 				openstackCluster.Spec.ExternalNetworkID = ""
 			}
 			openstackCluster.Spec.ManagedSecurityGroups = true
@@ -834,8 +967,12 @@ func (r *PlanReconciler) SetupWithManager(mgr ctrl.Manager, options controller.O
 
 func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan) error {
 	// List all machineset for this plan
+	err := deleteHA(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
 
-	err := deleteCluster(ctx, r.Client, scope, plan)
+	err = deleteCluster(ctx, r.Client, scope, plan)
 	if err != nil {
 		return err
 	}
@@ -870,6 +1007,32 @@ func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Sc
 		return err
 	}
 
+	return nil
+}
+
+func deleteHA(ctx context.Context, cli client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	if plan.Spec.LBEnable {
+		// cluster delete has delete lb
+	} else {
+		// delete HA ports fip
+		service, err := networking.NewService(scope)
+		if err != nil {
+			return err
+		}
+		if plan.Status.HAPublicIP != "" {
+			err = service.DeleteFloatingIP(plan, plan.Status.HAPublicIP)
+			if err != nil {
+				return err
+			}
+		}
+		// delete HA ports
+		if plan.Status.HAPortID != "" {
+			err = service.DeletePort(plan, plan.Status.HAPortID)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 func deleteSeverGroup(ctx context.Context, cli client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
@@ -956,6 +1119,10 @@ func deleteCluster(ctx context.Context, client client.Client, scope *scope.Scope
 		},
 	})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			scope.Logger.Info("Deleting the cluster succeeded")
+			return nil
+		}
 		scope.Logger.Error(err, "Delete cluster failed.")
 		return err
 	}
