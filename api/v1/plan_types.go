@@ -68,6 +68,9 @@ type PlanSpec struct {
 
 	NetMode NetWorkMode `json:"mode"`
 
+	//LBEnable is the flag to decide to create lb or no
+	LBEnable bool `json:"lb_enable"`
+
 	// K8sVersion is the version of kubernetes => ansible kubernetes tag
 	K8sVersion string `json:"k8sVersion"`
 
@@ -95,6 +98,9 @@ type PlanSpec struct {
 
 	// NodeCIDR is the node cidr of subnet which auto created
 	NodeCIDR string `json:"node_cidr,omitempty"`
+
+	// NeedKeepAlive is the flag to decide to keep alive the machine_sets role
+	NeedKeepAlive []string `json:"need_keep_alive"`
 
 	MachineSets []*MachineSetReconcile `json:"machine_sets"`
 
@@ -217,13 +223,21 @@ type PlanStatus struct {
 	OpenstackMachineList []clusteropenstack.OpenStackMachine `json:"openstack_machine_list,omitempty"`
 	// InfraMachine is the list of infra machine
 	InfraMachine []InfraMachine `json:"infra_machine,omitempty"`
+	// HAPortID is the port id of HA
+	HAPortID string `json:"ha_port_id,omitempty"`
+	// HAPrivateIP is the ip of HA
+	HAPrivateIP string `json:"ha_private_ip,omitempty"`
+	// HAPublicIP is the public ip of HA
+	HAPublicIP string `json:"ha_public_ip,omitempty"`
 }
 
 type InfraMachine struct {
 	// Role is the role of machine
-	Role string `json:"role"`
+	Role string `json:"role,omitempty"`
+	// PortIDs is the port id of machines
+	PortIDs []string `json:"port_ids,omitempty"`
 	// IPs is the ips of machine,key is the instance name(openstackMachine name),value is the ip
-	IPs map[string]string `json:"ips"`
+	IPs map[string]string `json:"ips,omitempty"`
 }
 
 type Servergroups struct {

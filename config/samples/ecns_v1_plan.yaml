@@ -13,14 +13,18 @@ spec:
   mode: "new"
   k8sVersion: "1.20.14"
   support_python3: false
+  lb_enable: false
   cluster_name: "test1"
-  ssh_key: "jian"
+  ssh_key: "binshan"
   use_float_ip: false
   node_cidr: "10.6.0.0/24"
+  need_keep_alive:
+    - "master"
+    - "ingress"
   machine_sets:
     - name: "test-master"
       role: "master"
-      number: 1
+      number: 3
       infras:
         - uid: "7d2d"
           availability_zone: "default-az"
@@ -37,9 +41,22 @@ spec:
           image: "centos-qga"
           flavor: "2C-4G"
           replica: 1
+        - uid: "7d3d"
+          availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 30
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+          image: "centos-qga"
+          flavor: "2C-4G"
+          replica: 2
     - name: "test-node"
-      image: "centos-qga"
-      flavor: "2C-4G"
       number: 2
       role: "node"
       infras:
@@ -58,18 +75,36 @@ spec:
           image: "centos-qga"
           flavor: "2C-4G"
           replica: 2
+    - name: "test-ingress"
+      number: 3
+      role: "ingress"
+      infras:
+        - uid: "bb90"
+          availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 20
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+          image: "centos-qga"
+          flavor: "2C-4G"
+          replica: 3
   monitor:
     pvc_type: "hdd"
     pvc_cap: "10"
     auto_clear_days: "7"
-  repo: "hub.easystack.io"
   cni_type: "flannel"
   pod_cidr: "10.232.0.0/14"
   svc_cidr: "10.222.0.0/16"
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkuM5Tl6KzZI2z4_dBXkkogasUebL-v7rOK57ivamVfs5vDnK8qZmpTjRJu0Z9CVC467LALRI6C4JtcMagYeusffyzyJ6WWloVcsfxgQRccm9YM-M8Z5Uc2Uawh56MbxIpsQM9zlXG8AHrW1x0kyw0JiklBfEU0ZVDRAUBM6NdMat5Jak"
+    token: "gAAAAABkyKQ-E003YEmTftLWlL6FC4F_iB8KDUtSNDbxhfi2P5QJ7P1nRqfwxz8acFIYgOW8J-p-JTyUkEeuvnRXsJJuT8QB0LtHF5ALSEsY8MFWVwIzisonH8xclbovtR7MpfWUqj07mUxVdmqM1pim0IYMXciTMd14E5qKosbMRWmzCWaAC44"
     region: "RegionOne"
 
 

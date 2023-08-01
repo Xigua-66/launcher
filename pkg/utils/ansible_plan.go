@@ -61,6 +61,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 			AnsibleSSHPrivateKeyFile: "",
 		})
 	}
+	ansiblePlan.Spec.Install = &ecnsv1.AnsibleInstall{}
 	ansiblePlan.Spec.Install.NodePools = nodePools
 	ansiblePlan.Spec.Install.OtherGroup = make(map[string][]string, 5)
 	for _, machineSet := range plan.Status.InfraMachine {
@@ -95,6 +96,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 			}
 		}
 	}
+	ansiblePlan.Spec.Install.OtherAnsibleOpts = make(map[string]string, 20)
 	// add test/vars param
 	if plan.Spec.PodCidr != "" {
 		ansiblePlan.Spec.Install.OtherAnsibleOpts["kube_pods_subnet"] = plan.Spec.PodCidr

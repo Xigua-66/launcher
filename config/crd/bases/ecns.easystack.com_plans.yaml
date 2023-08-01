@@ -62,6 +62,9 @@ spec:
                 description: K8sVersion is the version of kubernetes => ansible kubernetes
                   tag
                 type: string
+              lb_enable:
+                description: LBEnable is the flag to decide to create lb or no
+                type: boolean
               machine_sets:
                 items:
                   description: MachineSetReconcile is the  machine config Maybe we
@@ -176,6 +179,12 @@ spec:
                 - pvc_cap
                 - pvc_type
                 type: object
+              need_keep_alive:
+                description: NeedKeepAlive is the flag to decide to keep alive the
+                  machine_sets role
+                items:
+                  type: string
+                type: array
               node_cidr:
                 description: NodeCIDR is the node cidr of subnet which auto created
                 type: string
@@ -227,9 +236,11 @@ spec:
             - cluster_name
             - cni_type
             - k8sVersion
+            - lb_enable
             - machine_sets
             - mode
             - monitor
+            - need_keep_alive
             - ssh_key
             - support_python3
             - use_float_ip
@@ -237,6 +248,15 @@ spec:
           status:
             description: PlanStatus defines the observed state of Plan
             properties:
+              ha_port_id:
+                description: HAPortID is the port id of HA
+                type: string
+              ha_private_ip:
+                description: HAPrivateIP is the ip of HA
+                type: string
+              ha_public_ip:
+                description: HAPublicIP is the public ip of HA
+                type: string
               infra_machine:
                 description: InfraMachine is the list of infra machine
                 items:
@@ -247,12 +267,14 @@ spec:
                       description: IPs is the ips of machine,key is the instance name(openstackMachine
                         name),value is the ip
                       type: object
+                    port_ids:
+                      description: PortIDs is the port id of machines
+                      items:
+                        type: string
+                      type: array
                     role:
                       description: Role is the role of machine
                       type: string
-                  required:
-                  - ips
-                  - role
                   type: object
                 type: array
               openstack_machine_list:
