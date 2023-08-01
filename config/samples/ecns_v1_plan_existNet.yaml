@@ -18,6 +18,8 @@ spec:
   ssh_key: "binshan"
   use_float_ip: true
   external_network_id: "822abc64-050a-4d50-b5fa-5e8027d2cf57"
+  need_keep_alive:
+    - "master"
   dns_nameservers:
     - "8.8.8.8"
     - "114.114.114.114"
@@ -97,7 +99,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkxx6-6E6gCaXKBSM1wdMgb1IyJ_Zhe-l3l18OJForerb9ePTzgjRdaImcZvjlg82RwCJTdPeerIFbrraSyi-kHSeg2b39CSME1Wozu2471ARaR6uTuJff0WHbiNpKl9y2uxjIleBCXm1iok6TN6ZEqllrX-c-nMHkWy0JsfN7Vgv0aRQ"
+    token: "gAAAAABkyKQ-E003YEmTftLWlL6FC4F_iB8KDUtSNDbxhfi2P5QJ7P1nRqfwxz8acFIYgOW8J-p-JTyUkEeuvnRXsJJuT8QB0LtHF5ALSEsY8MFWVwIzisonH8xclbovtR7MpfWUqj07mUxVdmqM1pim0IYMXciTMd14E5qKosbMRWmzCWaAC44"
     region: "RegionOne"
 
 

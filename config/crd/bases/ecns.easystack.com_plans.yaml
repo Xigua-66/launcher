@@ -179,6 +179,12 @@ spec:
                 - pvc_cap
                 - pvc_type
                 type: object
+              need_keep_alive:
+                description: NeedKeepAlive is the flag to decide to keep alive the
+                  machine_sets role
+                items:
+                  type: string
+                type: array
               node_cidr:
                 description: NodeCIDR is the node cidr of subnet which auto created
                 type: string
@@ -234,6 +240,7 @@ spec:
             - machine_sets
             - mode
             - monitor
+            - need_keep_alive
             - ssh_key
             - support_python3
             - use_float_ip
@@ -268,10 +275,6 @@ spec:
                     role:
                       description: Role is the role of machine
                       type: string
-                  required:
-                  - ips
-                  - port_ids
-                  - role
                   type: object
                 type: array
               openstack_machine_list:

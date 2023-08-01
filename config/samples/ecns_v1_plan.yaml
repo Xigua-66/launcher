@@ -18,6 +18,9 @@ spec:
   ssh_key: "binshan"
   use_float_ip: false
   node_cidr: "10.6.0.0/24"
+  need_keep_alive:
+    - "master"
+    - "ingress"
   machine_sets:
     - name: "test-master"
       role: "master"
@@ -101,7 +104,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkx3_IJyn9qAMT1JZYeMl686ckGboH6MFv1wdlqgCsTkPW0Jd9a35hpr2rWeK-2WrBrv8NIUC4T_CQt-TSWYKa32JMPkq-0vqmstM-J6BpQIU-bAd11Rvr1Zm_CEA7RufRawdPPh7BkxIFU9jY_eU4ITBJsa-1n_NmHbdLptBc1UWU6js"
+    token: "gAAAAABkyKQ-E003YEmTftLWlL6FC4F_iB8KDUtSNDbxhfi2P5QJ7P1nRqfwxz8acFIYgOW8J-p-JTyUkEeuvnRXsJJuT8QB0LtHF5ALSEsY8MFWVwIzisonH8xclbovtR7MpfWUqj07mUxVdmqM1pim0IYMXciTMd14E5qKosbMRWmzCWaAC44"
     region: "RegionOne"
 
 
