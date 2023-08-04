@@ -765,6 +765,12 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			openstackCluster.Namespace = plan.Namespace
 			if plan.Spec.LBEnable {
 				openstackCluster.Spec.APIServerLoadBalancer.Enabled = true
+				if isFusionArchitecture(plan.Spec.MachineSets){
+					openstackCluster.Spec.APIServerLoadBalancer.AdditionalPorts = []int{
+						80,
+						443,
+					}
+				}
 			} else {
 				openstackCluster.Spec.APIServerLoadBalancer.Enabled = false
 				openstackCluster.Spec.ControlPlaneEndpoint.Host = "0.0.0.0"
@@ -803,6 +809,15 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 	}
 	return nil
 
+}
+
+func isFusionArchitecture(sets []*ecnsv1.MachineSetReconcile) bool {
+	for _, set := range sets {
+		if set.Role == ecnsv1.IngressSetRole && set.Number != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // TODO sync create kubeadmconfig
