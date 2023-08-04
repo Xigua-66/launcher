@@ -35,7 +35,7 @@ const (
 	Clusteropenstackapi         = "infrastructure.cluster.x-k8s.io/v1alpha6"
 	Clusteropenstackkind        = "OpenStackMachineTemplate"
 	CloudInitSecretSuffix       = "-cloudinit"
-	retryIntervalInstanceStatus = 5 * time.Second
+	retryIntervalInstanceStatus = 2 * time.Second
 	timeoutInstanceCreate       = 10 * time.Second
 
 	// OpenstackGlobalAuthTpl go template

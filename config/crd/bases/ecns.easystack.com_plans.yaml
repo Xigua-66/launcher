@@ -185,8 +185,14 @@ spec:
                 items:
                   type: string
                 type: array
+              need_load_balancer:
+                description: NeedLoadBalancer is the flag to decide to create loadBalancer
+                items:
+                  type: string
+                type: array
               node_cidr:
-                description: NodeCIDR is the node cidr of subnet which auto created
+                description: NodeCIDR is the node cidr of subnet which NetworkMode
+                  is new
                 type: string
               other_ansible_opts:
                 additionalProperties:
@@ -241,6 +247,7 @@ spec:
             - mode
             - monitor
             - need_keep_alive
+            - need_load_balancer
             - ssh_key
             - support_python3
             - use_float_ip
@@ -248,19 +255,18 @@ spec:
           status:
             description: PlanStatus defines the observed state of Plan
             properties:
-              ha_port_id:
-                description: HAPortID is the port id of HA
-                type: string
-              ha_private_ip:
-                description: HAPrivateIP is the ip of HA
-                type: string
-              ha_public_ip:
-                description: HAPublicIP is the public ip of HA
-                type: string
               infra_machine:
-                description: InfraMachine is the list of infra machine
-                items:
+                additionalProperties:
                   properties:
+                    ha_port_id:
+                      description: HAPortID is the port id of HA
+                      type: string
+                    ha_private_ip:
+                      description: HAPrivateIP is the ip of HA
+                      type: string
+                    ha_public_ip:
+                      description: HAPublicIP is the public ip of HA
+                      type: string
                     ips:
                       additionalProperties:
                         type: string
@@ -276,7 +282,9 @@ spec:
                       description: Role is the role of machine
                       type: string
                   type: object
-                type: array
+                description: InfraMachine is the list of infra machine,key is set
+                  role name,value is the InfraMachine
+                type: object
               openstack_machine_list:
                 description: OpenstackMachineList is the list of openstack machine
                 items:
@@ -821,6 +829,31 @@ spec:
                             ready.
                           type: boolean
                       type: object
+                  type: object
+                type: array
+              planLoadBalancer:
+                description: PlanLoadBalancer is the list of load balancer of plan
+                items:
+                  description: LoadBalancer represents basic information about the
+                    associated OpenStack LoadBalancer.
+                  properties:
+                    allowedCIDRs:
+                      items:
+                        type: string
+                      type: array
+                    id:
+                      type: string
+                    internalIP:
+                      type: string
+                    ip:
+                      type: string
+                    name:
+                      type: string
+                  required:
+                  - id
+                  - internalIP
+                  - ip
+                  - name
                   type: object
                 type: array
               server_group_id:

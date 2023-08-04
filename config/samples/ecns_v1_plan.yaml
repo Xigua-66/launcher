@@ -13,14 +13,19 @@ spec:
   mode: "new"
   k8sVersion: "1.20.14"
   support_python3: false
-  lb_enable: false
+  lb_enable: true
   cluster_name: "test1"
   ssh_key: "binshan"
-  use_float_ip: false
+  use_float_ip: true
   node_cidr: "10.6.0.0/24"
   need_keep_alive:
     - "master"
     - "ingress"
+    - "ingress1"
+  need_load_balancer:
+    - "ingress"
+    - "master"
+    - "ingress1"
   machine_sets:
     - name: "test-master"
       role: "master"
@@ -76,7 +81,7 @@ spec:
           flavor: "2C-4G"
           replica: 2
     - name: "test-ingress"
-      number: 3
+      number: 1
       role: "ingress"
       infras:
         - uid: "bb90"
@@ -93,7 +98,26 @@ spec:
               index: 3
           image: "centos-qga"
           flavor: "2C-4G"
-          replica: 3
+          replica: 1
+    - name: "test-ingress"
+      number: 1
+      role: "ingress1"
+      infras:
+        - uid: "bb95"
+          availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 20
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+          image: "centos-qga"
+          flavor: "2C-4G"
+          replica: 1
   monitor:
     pvc_type: "hdd"
     pvc_cap: "10"
@@ -104,7 +128,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkyKQ-E003YEmTftLWlL6FC4F_iB8KDUtSNDbxhfi2P5QJ7P1nRqfwxz8acFIYgOW8J-p-JTyUkEeuvnRXsJJuT8QB0LtHF5ALSEsY8MFWVwIzisonH8xclbovtR7MpfWUqj07mUxVdmqM1pim0IYMXciTMd14E5qKosbMRWmzCWaAC44"
+    token: "gAAAAABkzL7AFJullhmndUZ3qf_r8KpA4sSyUdgH0i5TiPm9skBB4gihUFqhq_h-c-RLAiMFZF_6zFMAYdcrVv6ClinUX-GRikFr0mnQNf44XpUZ92FdeVYylKFHcWkvnO2XRA9uG4C2s3iOTKlaUWxqytQmdPbxMG2aZ1vwkXJVrC7dheAA7TE"
     region: "RegionOne"
 
 
