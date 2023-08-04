@@ -39,11 +39,14 @@ const (
 )
 
 // UpdatePortAllowedAddressPairs updates the allowed address pairs of the port with the given ID.
-func (s *Service) UpdatePortAllowedAddressPairs(portID string, ip string) error {
+func (s *Service) UpdatePortAllowedAddressPairs(portID string, ips []string) error {
 	var addressPairs []ports.AddressPair
-	addressPairs = append(addressPairs, ports.AddressPair{
-		IPAddress: ip,
-	})
+	for _, ip := range ips {
+		addressPairs = append(addressPairs, ports.AddressPair{
+			IPAddress: ip,
+		})
+	}
+
 	_, err := s.client.UpdatePort(portID, ports.UpdateOpts{
 		AllowedAddressPairs: &addressPairs,
 	})

@@ -5,6 +5,7 @@ import (
 	ecnsv1 "easystack.com/plan/api/v1"
 	"fmt"
 	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
+	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -36,9 +37,15 @@ func GetAdoptInfra(ctx context.Context, cli client.Client, target *ecnsv1.Machin
 		var hasCheck int64 = 0
 		var machineHasDeleted int64 = 0
 		for _, o := range om.Items {
-			if o.Annotations[TemplateClonedFromNameAnnotation] == fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, target.Role, in.UID) {
+			// get machine from openstackmachine
+			ownerMachine, err := util.GetOwnerMachine(ctx, cli, o.ObjectMeta)
+			if err != nil {
+				return nil, err
+			}
+			// need skip openstackMachine that is being deleted
+			if o.Annotations[TemplateClonedFromNameAnnotation] == fmt.Sprintf("%s%s%s", plan.Spec.ClusterName, target.Role, in.UID) && (o.ObjectMeta.DeletionTimestamp == nil) {
 				hasCheck++
-				if o.Annotations[DeleteMachineAnnotation] == "true" {
+				if ownerMachine.Annotations[DeleteMachineAnnotation] == "true" {
 					machineHasDeleted++
 				}
 			}

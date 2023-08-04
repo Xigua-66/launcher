@@ -96,11 +96,14 @@ type PlanSpec struct {
 	// DNSNameservers is the dns nameservers of subnet which auto created
 	DNSNameservers []string `json:"dns_nameservers,omitempty"`
 
-	// NodeCIDR is the node cidr of subnet which auto created
+	// NodeCIDR is the node cidr of subnet which NetworkMode is new
 	NodeCIDR string `json:"node_cidr,omitempty"`
 
 	// NeedKeepAlive is the flag to decide to keep alive the machine_sets role
 	NeedKeepAlive []string `json:"need_keep_alive"`
+
+	// NeedLoadBalancer is the flag to decide to create loadBalancer
+	NeedLoadBalancer []string `json:"need_load_balancer"`
 
 	MachineSets []*MachineSetReconcile `json:"machine_sets"`
 
@@ -221,14 +224,20 @@ type PlanStatus struct {
 	VMDone bool `json:"vm_done,omitempty"`
 	// OpenstackMachineList is the list of openstack machine
 	OpenstackMachineList []clusteropenstack.OpenStackMachine `json:"openstack_machine_list,omitempty"`
-	// InfraMachine is the list of infra machine
-	InfraMachine []InfraMachine `json:"infra_machine,omitempty"`
-	// HAPortID is the port id of HA
-	HAPortID string `json:"ha_port_id,omitempty"`
-	// HAPrivateIP is the ip of HA
-	HAPrivateIP string `json:"ha_private_ip,omitempty"`
-	// HAPublicIP is the public ip of HA
-	HAPublicIP string `json:"ha_public_ip,omitempty"`
+	// InfraMachine is the list of infra machine,key is set role name,value is the InfraMachine
+	InfraMachine map[string]InfraMachine `json:"infra_machine,omitempty"`
+	// PlanLoadBalancer is the list of load balancer of plan
+	PlanLoadBalancer []*LoadBalancer `json:"planLoadBalancer,omitempty"`
+}
+
+// LoadBalancer represents basic information about the associated OpenStack LoadBalancer.
+type LoadBalancer struct {
+	Name       string `json:"name"`
+	ID         string `json:"id"`
+	IP         string `json:"ip"`
+	InternalIP string `json:"internalIP"`
+	//+optional
+	AllowedCIDRs []string `json:"allowedCIDRs,omitempty"`
 }
 
 type InfraMachine struct {
@@ -238,6 +247,12 @@ type InfraMachine struct {
 	PortIDs []string `json:"port_ids,omitempty"`
 	// IPs is the ips of machine,key is the instance name(openstackMachine name),value is the ip
 	IPs map[string]string `json:"ips,omitempty"`
+	// HAPortID is the port id of HA
+	HAPortID string `json:"ha_port_id,omitempty"`
+	// HAPrivateIP is the ip of HA
+	HAPrivateIP string `json:"ha_private_ip,omitempty"`
+	// HAPublicIP is the public ip of HA
+	HAPublicIP string `json:"ha_public_ip,omitempty"`
 }
 
 type Servergroups struct {
