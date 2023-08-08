@@ -48,8 +48,10 @@ kubectl apply -f ecns_v1_plan.yaml
 ```
 - 3 添加本地认证host
 ```
-10.230.0.2 keystone.openstack.svc.cluster.local
-10.230.0.2 nova.openstack.svc.cluster.local
+172.35.0.2 keystone.openstack.svc.cluster.local
+172.35.0.2 nova.openstack.svc.cluster.local
+172.35.0.2 neutron.openstack.svc.cluster.local
+172.35.0.2 octavia.octavia.svc.cluster.local
 ```
 -  4.程序调试
 ```
