@@ -112,17 +112,17 @@ func GetOrCreateSSHkeyFile(ctx context.Context, cli client.Client, ansible *ecns
 
 	// create file
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-    if err != nil {
-       return err
-    }
+	if err != nil {
+		return err
+	}
 
 	defer file.Close()
 
 	_, err = file.Write([]byte(pri))
-    if err != nil {
-        return err
-    }
-	
+	if err != nil {
+		return err
+	}
+
 	for i, pool := range ansible.Spec.Install.NodePools {
 		if pool.AnsibleSSHPrivateKeyFile == "" {
 			ansible.Spec.Install.NodePools[i].AnsibleSSHPrivateKeyFile = path

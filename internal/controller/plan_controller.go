@@ -29,6 +29,7 @@ import (
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	clusteropenstackerrors "github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/servergroups"
@@ -290,7 +291,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	// create all machineset Once
 	for _, set := range plan.Spec.MachineSets {
 		// check machineSet is existed
-		fmt.Println("set.Role", set.Role)
 		machineSetName := fmt.Sprintf("%s%s", plan.Spec.ClusterName, set.Role)
 		machineSetNamespace := plan.Namespace
 		machineSet := &clusterapi.MachineSet{}
@@ -381,7 +381,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 				scope.Logger.Info("Update vip port and add pod cidr", "ClusterName", plan.Spec.ClusterName, "Port", portID, "Pairs", Pairs)
 			}
 		}
-	}else{
+	} else {
 		// add lb member
 		for _, set := range plan.Status.InfraMachine {
 			if SetNeedLoadBalancer(set.Role, plan.Spec.NeedLoadBalancer) {
@@ -422,7 +422,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	return ctrl.Result{}, nil
 }
 
-func syncMember(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan,setStatus *ecnsv1.InfraMachine) error  {
+func syncMember(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan, setStatus *ecnsv1.InfraMachine) error {
 	if setStatus.Role == ecnsv1.MasterSetRole {
 		return nil
 	}
@@ -444,12 +444,12 @@ func syncMember(ctx context.Context, scope *scope.Scope, cli client.Client, plan
 			return err
 		}
 		// get openstack machine
-		machine,err := utils.GetOwnerMachine(ctx, cli, openstackMachine.ObjectMeta)
+		machine, err := utils.GetOwnerMachine(ctx, cli, openstackMachine.ObjectMeta)
 		if err != nil {
 			return err
 		}
 		var port []int = []int{80, 443}
-		err = loadBalancerService.ReconcileLoadBalancerMember(&openstackCluster,machine,&openstackMachine,lbName,ip,port)
+		err = loadBalancerService.ReconcileLoadBalancerMember(&openstackCluster, machine, &openstackMachine, lbName, ip, port)
 		if err != nil {
 			return err
 		}
@@ -587,7 +587,46 @@ func SetNeedKeepAlived(role string, alive []string) bool {
 // TODO sync ansiblePlan
 func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan, ansibleOld *ecnsv1.AnsiblePlan) error {
 	ansibleNew := utils.CreateAnsiblePlan(ctx, scope, cli, plan)
-	fmt.Println(cmp.Diff(ansibleOld.Spec, ansibleNew.Spec))
+	// 0. check if ansiblePlan can be updated
+	if !ansibleOld.Spec.Done {
+		return errors.New("ansiblePlan is not done,task is doing")
+	}
+	// 1. check if upgrade is needed
+	upgrade, err := utils.IsUpgradeNeeded(ansibleOld, &ansibleNew)
+	if err != nil {
+		return err
+	}
+	if upgrade {
+		//update ansiblePlan
+		ansibleNew.Spec.Type = ecnsv1.ExecTypeUpgrade
+	}
+	// del with remove or expansion
+	DiffReporter := &utils.DiffReporter{}
+	option := cmpopts.SortSlices(func(i, j *ecnsv1.AnsibleNode) bool { return i.Name < j.Name })
+	ignore := cmpopts.IgnoreFields(ecnsv1.AnsibleNode{}, "MemoryReserve", "AnsibleSSHPrivateKeyFile")
+	cmp.Diff(ansibleOld.Spec.Install.NodePools, ansibleNew.Spec.Install.NodePools, option, ignore, cmp.Reporter(DiffReporter))
+	if DiffReporter.NodesUpdate || (DiffReporter.UpScale && DiffReporter.DownScale) {
+		return errors.New("Nodes base's information has changed or need scale and remove node once,please check the instance status")
+	} else if DiffReporter.UpScale {
+		// set ansiblePlan type is expansion
+		ansibleNew.Spec.Type = ecnsv1.ExecTypeExpansion
+		for _, node := range DiffReporter.AdditionalNodes {
+			ansibleNew.Spec.Install.KubeNode = append(ansibleNew.Spec.Install.KubeNode, node.Name)
+		}
+	} else if DiffReporter.DownScale {
+		// set ansiblePlan type is remove
+		ansibleNew.Spec.Type = ecnsv1.ExecTypeRemove
+		for _, node := range DiffReporter.AdditionalNodes {
+			ansibleNew.Spec.Install.KubeNode = append(ansibleNew.Spec.Install.KubeNode, node.Name)
+		}
+		// add remove force_delete_nodes,because machine instance has been deleted
+		ansibleNew.Spec.Install.OtherAnsibleOpts["delete_nodes_confirmation"] = "yes"
+		ansibleNew.Spec.Install.OtherAnsibleOpts["force_delete_nodes"] = "new"
+	}
+	err = utils.PatchAnsiblePlan(ctx, cli, ansibleOld, &ansibleNew)
+	if err != nil {
+		return err
+	}
 
 	return nil
 
@@ -765,7 +804,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			openstackCluster.Namespace = plan.Namespace
 			if plan.Spec.LBEnable {
 				openstackCluster.Spec.APIServerLoadBalancer.Enabled = true
-				if isFusionArchitecture(plan.Spec.MachineSets){
+				if isFusionArchitecture(plan.Spec.MachineSets) {
 					openstackCluster.Spec.APIServerLoadBalancer.AdditionalPorts = []int{
 						80,
 						443,
@@ -1159,7 +1198,7 @@ func deleteHA(ctx context.Context, cli client.Client, scope *scope.Scope, plan *
 			return err
 		}
 		for _, set := range plan.Spec.MachineSets {
-			loadbalancerName:= fmt.Sprintf("%s-%s", plan.Spec.ClusterName, set.Role)
+			loadbalancerName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, set.Role)
 			err = service.DeleteLoadBalancer(plan, loadbalancerName)
 			if err != nil {
 				return err

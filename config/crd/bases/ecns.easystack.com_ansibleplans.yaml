@@ -104,8 +104,9 @@ spec:
                           type: string
                       type: object
                     type: array
-                  otherAnsibleOpts:
-                    additionalProperties: {}
+                  other_ansible_opts:
+                    additionalProperties:
+                      type: string
                     description: OtherAnsibleOpts is the ansible custome vars OtherAnsibleOpts
                       => ansible test/vars.yaml
                     type: object

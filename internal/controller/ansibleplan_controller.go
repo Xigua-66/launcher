@@ -20,13 +20,13 @@ import (
 	"context"
 	"reflect"
 
+	easystackcomv1 "easystack.com/plan/api/v1"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/utils"
-	easystackcomv1 "easystack.com/plan/api/v1"
 
 	"github.com/go-logr/logr"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -104,7 +104,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 			return r.reconcileDelete(ctx, log, patchHelper, ansible)
 		}
-		
+
 	}
 
 	// Handle non-deleted clusters
@@ -172,7 +172,6 @@ func deleteAnsibleSSHKeySecret(ctx context.Context, client client.Client, ansibl
 
 	return nil
 }
-
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AnsiblePlanReconciler) SetupWithManager(mgr ctrl.Manager, options controller.Options) error {

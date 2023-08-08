@@ -4,12 +4,58 @@ import (
 	"context"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/scope"
+	"encoding/json"
 	"fmt"
 	clusteropenstack "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
+	"github.com/google/go-cmp/cmp"
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 	"time"
 )
+
+// DiffReporter is a simple custom reporter that only records differences
+// detected during comparison.
+type DiffReporter struct {
+	path            cmp.Path
+	diffs           []string
+	UpScale         bool
+	DownScale       bool
+	AdditionalNodes []*ecnsv1.AnsibleNode
+	NodesUpdate     bool
+}
+
+func (r *DiffReporter) PushStep(ps cmp.PathStep) {
+	r.path = append(r.path, ps)
+}
+
+func (r *DiffReporter) Report(rs cmp.Result) {
+	if !rs.Equal() {
+		vx, vy := r.path.Last().Values()
+		r.diffs = append(r.diffs, fmt.Sprintf("%#v:\n\t-: %+v\n\t+: %+v\n", r.path, vx, vy))
+		if vx.IsValid() && vx.Type().String() == "*v1.AnsibleNode" {
+			r.DownScale = true
+			r.AdditionalNodes = append(r.AdditionalNodes, vx.Interface().(*ecnsv1.AnsibleNode))
+		} else if vy.IsValid() && vy.Type().String() == "*v1.AnsibleNode" {
+			r.UpScale = true
+			r.AdditionalNodes = append(r.AdditionalNodes, vy.Interface().(*ecnsv1.AnsibleNode))
+		} else {
+			r.NodesUpdate = true
+		}
+
+	}
+}
+
+func (r *DiffReporter) PopStep() {
+	r.path = r.path[:len(r.path)-1]
+}
+
+func (r *DiffReporter) String() string {
+	return strings.Join(r.diffs, "\n")
+}
 
 const (
 	retryWaitInstanceStatus = 10 * time.Second
@@ -37,6 +83,27 @@ func WaitAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 	}
 	scope.Logger.Info("machine all has ready,continue task")
 	return nil
+}
+
+func IsUpgradeNeeded(ansibleOld *ecnsv1.AnsiblePlan, ansibleNew *ecnsv1.AnsiblePlan) (bool, error) {
+	// v1.18.3 -> v1.18.4 convert to 1.18.3 -> 1.18.
+	// Version Control Reference https://semver.org/
+	oldVersion := strings.TrimPrefix(ansibleOld.Spec.Version, "v")
+	newVersion := strings.TrimPrefix(ansibleNew.Spec.Version, "v")
+	v1, err := version.NewVersion(oldVersion)
+	if err != nil {
+		return false, err
+	}
+	v2, err := version.NewVersion(newVersion)
+	if err != nil {
+		return false, err
+	}
+	if v1.LessThan(v2) {
+		return true, nil
+	}
+	// Maybe user want to downgrade,but we should support this?
+	return false, nil
+
 }
 
 func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan) ecnsv1.AnsiblePlan {
@@ -132,4 +199,32 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 	}
 	return ansiblePlan
 
+}
+
+// PatchAnsiblePlan makes patch request to the MachineSet object.
+func PatchAnsiblePlan(ctx context.Context, cli client.Client, cur, mod *ecnsv1.AnsiblePlan) error {
+	curJSON, err := json.Marshal(cur)
+	if err != nil {
+		return fmt.Errorf("failed to serialize current MachineSet object: %s", err)
+	}
+
+	modJSON, err := json.Marshal(mod)
+	if err != nil {
+		return fmt.Errorf("failed to serialize modified MachineSet object: %s", err)
+	}
+	patch, err := jsonmergepatch.CreateThreeWayJSONMergePatch(curJSON, modJSON, curJSON)
+	if err != nil {
+		return fmt.Errorf("failed to create 2-way merge patch: %s", err)
+	}
+	if len(patch) == 0 || string(patch) == "{}" {
+		return nil
+	}
+	patchObj := client.RawPatch(types.MergePatchType, patch)
+	// client patch machineSet replicas
+	err = cli.Patch(ctx, cur, patchObj)
+	if err != nil {
+		return fmt.Errorf("failed to patch MachineSet object %s/%s: %s", cur.Namespace, cur.Name, err)
+	}
+
+	return nil
 }
