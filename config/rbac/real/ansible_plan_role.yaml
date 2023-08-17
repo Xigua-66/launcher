@@ -1,0 +1,74 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ansible_plan_role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+      - configmaps
+      - events
+    verbs:
+      - "*"
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - cluster.x-k8s.io
+    resources:
+      - clusters
+      - clusters/finalizers
+      - clusters/status
+      - machinesets
+      - machinesets/finalizers
+      - machinesets/status
+      - machines
+      - machines/finalizers
+      - machines/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - bootstrap.cluster.x-k8s.io
+    resources:
+      - kubeadmconfigtemplates
+    verbs:
+      - "*"
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - openstackclusters
+      - openstackclustertemplates
+      - openstackmachines
+      - openstackmachinetemplates
+    verbs:
+      - "*"
+  - apiGroups:
+      - ecns.easystack.com
+    resources:
+      - plans
+      - plans/status
+      - plans/finalizers
+      - ansibleplans
+      - ansibleplans/status
+      - ansibleplans/finalizers
+    verbs:
+      - "*"
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - openstackclusters/status
+      - openstackmachines/status
+    verbs:
+      - get
+      - patch
+      - update
