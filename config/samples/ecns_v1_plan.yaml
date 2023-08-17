@@ -11,9 +11,9 @@ metadata:
   namespace: test-capo
 spec:
   mode: "new"
-  k8sVersion: "1.20.14"
+  k8sVersion: "v1.20.18"
   support_python3: false
-  lb_enable: true
+  lb_enable: false
   cluster_name: "test1"
   ssh_key: "binshan"
   use_float_ip: true
@@ -35,7 +35,7 @@ spec:
           availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
-              volume_size: 20
+              volume_size: 150
               index: 1
             - volume_type: "hdd"
               volume_size: 10
@@ -43,14 +43,14 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "centos-qga"
+          image: "kylin-base-line"
           flavor: "2C-4G"
-          replica: 1
+          replica: 2
         - uid: "7d3d"
           availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
-              volume_size: 30
+              volume_size: 150
               index: 1
             - volume_type: "hdd"
               volume_size: 5
@@ -58,18 +58,18 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "centos-qga"
+          image: "kylin-base-line"
           flavor: "2C-4G"
-          replica: 2
+          replica: 1
     - name: "test-node"
-      number: 2
+      number: 1
       role: "node"
       infras:
         - uid: "bb85"
           availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
-              volume_size: 20
+              volume_size: 150
               index: 1
             - volume_type: "hdd"
               volume_size: 10
@@ -77,9 +77,9 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "centos-qga"
+          image: "kylin-base-line"
           flavor: "2C-4G"
-          replica: 2
+          replica: 1
     - name: "test-ingress"
       number: 1
       role: "ingress"
@@ -88,7 +88,7 @@ spec:
           availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
-              volume_size: 20
+              volume_size: 150
               index: 1
             - volume_type: "hdd"
               volume_size: 10
@@ -96,7 +96,7 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "centos-qga"
+          image: "kylin-base-line"
           flavor: "2C-4G"
           replica: 1
     - name: "test-ingress"
@@ -107,7 +107,7 @@ spec:
           availability_zone: "default-az"
           volumes:
             - volume_type: "hdd"
-              volume_size: 20
+              volume_size: 150
               index: 1
             - volume_type: "hdd"
               volume_size: 10
@@ -115,9 +115,28 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "centos-qga"
+          image: "kylin-base-line"
           flavor: "2C-4G"
           replica: 1
+    - name: "test-ingress"
+      number: 0
+      role: "ingress2"
+      infras:
+        - uid: "bb100"
+          availability_zone: "default-az"
+          volumes:
+            - volume_type: "hdd"
+              volume_size: 150
+              index: 1
+            - volume_type: "hdd"
+              volume_size: 10
+              index: 2
+            - volume_type: "hdd"
+              volume_size: 5
+              index: 3
+          image: "kylin-base-line"
+          flavor: "2C-4G"
+          replica: 0
   monitor:
     pvc_type: "hdd"
     pvc_cap: "10"
@@ -128,7 +147,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABkzL7AFJullhmndUZ3qf_r8KpA4sSyUdgH0i5TiPm9skBB4gihUFqhq_h-c-RLAiMFZF_6zFMAYdcrVv6ClinUX-GRikFr0mnQNf44XpUZ92FdeVYylKFHcWkvnO2XRA9uG4C2s3iOTKlaUWxqytQmdPbxMG2aZ1vwkXJVrC7dheAA7TE"
+    token: "gAAAAABk3DrO74n6SZDMMx5h32sOmosMULyYfmcNT41DC6FIf1HEAY09yLmdRfLZ2pdYxi9f8ZGgfzOMwny4Dw3ruI_yz3mta8aQtpZi1nXvP32ypw7NSGwedKlqLM_3I2amaBd-TOQlof-MFl1pxmlEeYHMUjnkjsq3n4Zu-P3s84ksAQHrCKs"
     region: "RegionOne"
 
 

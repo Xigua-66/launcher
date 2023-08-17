@@ -330,7 +330,6 @@ func (s *Service) getOrCreateMonitor(openStackCluster *infrav1.OpenStackCluster,
 	if err != nil {
 		return err
 	}
-
 	if monitor != nil {
 		return nil
 	}
@@ -456,7 +455,7 @@ func (s *Service) DeleteLoadBalancer(plan *ecnsv1.Plan, lbName string) error {
 	}
 
 	if lb.VipPortID != "" {
-		s.scope.Logger.Info("Deleting load balancer fip", "name", loadBalancerName, "portID",lb.VipPortID)
+		s.scope.Logger.Info("Deleting load balancer fip", "name", loadBalancerName, "portID", lb.VipPortID)
 		fip, err := s.networkingService.GetFloatingIPByPortID(lb.VipPortID)
 		if err != nil {
 			return err

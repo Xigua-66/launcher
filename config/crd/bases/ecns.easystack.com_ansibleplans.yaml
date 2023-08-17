@@ -104,8 +104,9 @@ spec:
                           type: string
                       type: object
                     type: array
-                  otherAnsibleOpts:
-                    additionalProperties: {}
+                  other_ansible_opts:
+                    additionalProperties:
+                      type: string
                     description: OtherAnsibleOpts is the ansible custome vars OtherAnsibleOpts
                       => ansible test/vars.yaml
                     type: object
@@ -132,6 +133,9 @@ spec:
                 description: Version is the version of the k8s
                 type: string
             required:
+            - autoRun
+            - clusterName
+            - done
             - sshSecret
             - supportPython3
             - type
