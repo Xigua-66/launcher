@@ -1,4 +1,4 @@
-package ansible
+package main
 
 import (
 	ecnsv1 "easystack.com/plan/api/v1"
