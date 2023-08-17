@@ -223,7 +223,7 @@ func PatchAnsiblePlan(ctx context.Context, cli client.Client, cur, mod *ecnsv1.A
 	// client patch machineSet replicas
 	err = cli.Patch(ctx, cur, patchObj)
 	if err != nil {
-		return fmt.Errorf("failed to patch MachineSet object %s/%s: %s", cur.Namespace, cur.Name, err)
+		return fmt.Errorf("failed to patch AnsiblePlan object %s/%s: %s", cur.Namespace, cur.Name, err)
 	}
 
 	return nil

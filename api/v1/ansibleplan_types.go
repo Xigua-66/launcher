@@ -31,12 +31,12 @@ type AnsiblePlanSpec struct {
 	// NodePools are the node pools
 	Install *AnsibleInstall `json:"install,omitempty"`
 	// AutoRun is the flag to indicate the plan is auto run
-	AutoRun bool `json:"autoRun,omitempty"`
+	AutoRun bool `json:"autoRun"`
 	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
 	// unless the plan operator is to take the initiative in changing the variable
-	Done bool `json:"done,omitempty"`
+	Done bool `json:"done"`
 	// ClusterName is the cluster name
-	ClusterName string `json:"clusterName,omitempty"`
+	ClusterName string `json:"clusterName"`
 	// SSHSecret is the ssh secret name
 	SSHSecret string `json:"sshSecret"`
 	// Version is the version of the k8s

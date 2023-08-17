@@ -214,8 +214,16 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
 			err = r.deletePlanResource(ctx, scope, plan)
 			if err != nil {
-				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, nil
+				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, err
 			}
+
+			err = r.Client.Get(ctx, req.NamespacedName, plan)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return ctrl.Result{}, nil
+				}
+			}
+
 			// remove our finalizer from the list and update it.
 			var found bool
 			plan.ObjectMeta.Finalizers, found = RemoveString(ecnsv1.MachineFinalizer, plan.ObjectMeta.Finalizers)
@@ -413,6 +421,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 		}
 	}
 
+
 	// Compare plan with ansiblePlan to update ansiblePlan
 	err = syncAnsiblePlan(ctx, scope, r.Client, plan, &ansiblePlan)
 	if err != nil {
@@ -587,6 +596,8 @@ func SetNeedKeepAlived(role string, alive []string) bool {
 // TODO sync ansiblePlan
 func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client, plan *ecnsv1.Plan, ansibleOld *ecnsv1.AnsiblePlan) error {
 	ansibleNew := utils.CreateAnsiblePlan(ctx, scope, cli, plan)
+	ansibleOld.ObjectMeta.DeepCopyInto(&ansibleNew.ObjectMeta)
+	ansibleOld.TypeMeta = ansibleNew.TypeMeta
 	// 0. check if ansiblePlan can be updated
 	if !ansibleOld.Spec.Done {
 		return errors.New("ansiblePlan is not done,task is doing")
@@ -610,18 +621,22 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 	} else if DiffReporter.UpScale {
 		// set ansiblePlan type is expansion
 		ansibleNew.Spec.Type = ecnsv1.ExecTypeExpansion
+		// reset this scale field
+		ansibleNew.Spec.Install.KubeNode = nil
 		for _, node := range DiffReporter.AdditionalNodes {
 			ansibleNew.Spec.Install.KubeNode = append(ansibleNew.Spec.Install.KubeNode, node.Name)
 		}
 	} else if DiffReporter.DownScale {
 		// set ansiblePlan type is remove
 		ansibleNew.Spec.Type = ecnsv1.ExecTypeRemove
+		// reset this scale field
+		ansibleNew.Spec.Install.KubeNode = nil
 		for _, node := range DiffReporter.AdditionalNodes {
 			ansibleNew.Spec.Install.KubeNode = append(ansibleNew.Spec.Install.KubeNode, node.Name)
 		}
 		// add remove force_delete_nodes,because machine instance has been deleted
 		ansibleNew.Spec.Install.OtherAnsibleOpts["delete_nodes_confirmation"] = "yes"
-		ansibleNew.Spec.Install.OtherAnsibleOpts["force_delete_nodes"] = "new"
+		ansibleNew.Spec.Install.OtherAnsibleOpts["force_delete_nodes"] = "yes"
 	}
 	err = utils.PatchAnsiblePlan(ctx, cli, ansibleOld, &ansibleNew)
 	if err != nil {
@@ -1081,6 +1096,7 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 		case diff > 0:
 			for i := 0; i < int(diff); i++ {
 				replicas := *acNow.Spec.Replicas + int32(i) + 1
+				sc.Logger.Info("add pass into", "replicas", replicas)
 				err = utils.AddReplicas(ctx, sc, c, target, actual.Name, plan, int(index), mastergroup, nodegroup, replicas)
 				if err != nil {
 					return err
@@ -1093,6 +1109,7 @@ func (r *PlanReconciler) processWork(ctx context.Context, sc *scope.Scope, c cli
 			}
 			for i := 0; i < int(diff); i++ {
 				replicas := *acNow.Spec.Replicas - int32(i) - 1
+				sc.Logger.Info("add pass into", "replicas", replicas)
 				err = utils.SubReplicas(ctx, sc, c, target, actual.Name, plan, int(index), replicas)
 				if err != nil {
 					return err
@@ -1286,7 +1303,7 @@ func deleteCloudInitSecret(ctx context.Context, client client.Client, scope *sco
 			// create machineset
 			var cloudInitSecret corev1.Secret
 			secretName := fmt.Sprintf("%s-%s%s", plan.Spec.ClusterName, set.Name, utils.CloudInitSecretSuffix)
-			err := client.Get(ctx, types.NamespacedName{
+			err = client.Get(ctx, types.NamespacedName{
 				Namespace: plan.Namespace,
 				Name:      secretName,
 			}, &cloudInitSecret)

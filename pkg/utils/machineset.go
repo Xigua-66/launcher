@@ -36,7 +36,7 @@ const (
 	Clusteropenstackkind        = "OpenStackMachineTemplate"
 	CloudInitSecretSuffix       = "-cloudinit"
 	retryIntervalInstanceStatus = 2 * time.Second
-	timeoutInstanceCreate       = 10 * time.Second
+	timeoutInstanceCreate       = 20 * time.Second
 
 	// OpenstackGlobalAuthTpl go template
 	OpenstackGlobalAuthTpl = `[Global]
@@ -128,8 +128,10 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	}
 	// merge patch machineSet config
 	origin := actual.DeepCopy()
+	fakeOrigin := actual.DeepCopy()
 	var replicas int32 = Mre
 	actual.Spec.Replicas = &replicas
+	scope.Logger.Info("old machineSet  replicas", "replicas", origin.Spec.Replicas)
 	scope.Logger.Info("prepare add to replicas", "replicas", replicas)
 	actual.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
 	actual.Spec.Template.Spec.InfrastructureRef.APIVersion = Clusteropenstackapi
@@ -151,15 +153,19 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 		}
 		scope.Logger.Info("wait add to replicas", "replicas", m.Status.FullyLabeledReplicas)
 
+		scope.Logger.Info("in fact", "replicas", m.Status.FullyLabeledReplicas)
+		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas + 1)
+
+
 		switch m.Status.FullyLabeledReplicas {
-		case *origin.Spec.Replicas + 1:
+		case *fakeOrigin.Spec.Replicas + 1:
 			return true, nil
 		default:
 			return false, nil
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("check replicas is ready error:%v in get replicas %d", err, actual.Spec.Replicas)
+		return fmt.Errorf("add check replicas is ready error:%v in get replicas %d", err, *actual.Spec.Replicas)
 	}
 	scope.Logger.Info("add replicas success", "replicas", actual.Spec.Replicas)
 	return nil
@@ -180,6 +186,7 @@ func SubReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 	}
 	// merge patch machineSet config
 	origin := actual.DeepCopy()
+	fakeOrigin := actual.DeepCopy()
 	var replicas int32 = Mre
 	actual.Spec.Replicas = &replicas
 	actual.Spec.Template.Spec.FailureDomain = &infra.AvailabilityZone
@@ -200,15 +207,17 @@ func SubReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 		if err != nil {
 			return false, err
 		}
+		scope.Logger.Info("in fact", "replicas", m.Status.FullyLabeledReplicas)
+		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas - 1)
 		switch m.Status.FullyLabeledReplicas {
-		case *origin.Spec.Replicas - 1:
+		case *fakeOrigin.Spec.Replicas - 1:
 			return true, nil
 		default:
 			return false, nil
 		}
 	})
 	if err != nil {
-		return fmt.Errorf("check replicas is ready error:%v in get replicas %d", err, actual.Spec.Replicas)
+		return fmt.Errorf("sub check replicas is ready error:%v in get replicas %d", err, *actual.Spec.Replicas)
 	}
 	scope.Logger.Info("add replicas success", "replicas", actual.Spec.Replicas)
 	return nil
@@ -491,7 +500,7 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 
 				cloudInitData = []byte(fmt.Sprintf("%s\n%s ", string(cloudInitData), set.CloudInit))
 			}
-			cloudInitSecret.Data["format"] = []byte(base64.StdEncoding.EncodeToString([]byte("cloud-config")))
+			cloudInitSecret.Data["format"] = []byte("cloud-config")
 			cloudInitSecret.Data["value"] = cloudInitData
 			//TODO create cloud init secret resource
 			err = client.Create(ctx, &cloudInitSecret)

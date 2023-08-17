@@ -330,7 +330,6 @@ func (s *Service) getOrCreateMonitor(openStackCluster *infrav1.OpenStackCluster,
 	if err != nil {
 		return err
 	}
-
 	if monitor != nil {
 		return nil
 	}

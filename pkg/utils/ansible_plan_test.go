@@ -116,5 +116,4 @@ func TestCmp(t *testing.T) {
 	fmt.Println(DiffRr.NodesUpdate)
 	fmt.Println(DiffRr.UpScale)
 	fmt.Println(DiffRr.DownScale)
-
 }
