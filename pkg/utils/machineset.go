@@ -441,7 +441,7 @@ func getOrCreateCloudInitSecret(ctx context.Context, scope *scope.Scope, client 
 
 			authBase64 := base64.StdEncoding.EncodeToString(authBuf.Bytes())
 			eksInput.WriteFiles = append(eksInput.WriteFiles, bootstrapv1.File{
-				Path:        "/etc/kubernetes/cloud-config",
+				Path:        "/opt/cloud_config",
 				Owner:       "root:root",
 				Permissions: "0644",
 				Encoding:    bootstrapv1.Base64,
