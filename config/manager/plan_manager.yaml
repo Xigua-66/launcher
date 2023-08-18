@@ -11,7 +11,8 @@ spec:
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
+        ovn.kubernetes.io/logical_switch: ovn-default
+        v1.multus-cni.io/default-network: eks-managed/kube-ovn
       labels:
         control-plane: plan-controller-manager
     spec:
@@ -21,6 +22,7 @@ spec:
           args:
             - --leader-elect
           image: hub.easystack.cn/captain/launcher:dev
+          imagePullPolicy: Always
           name: planmanager
           livenessProbe:
             httpGet:
@@ -45,3 +47,5 @@ spec:
               memory: 4096Mi
       terminationGracePeriodSeconds: 10
       serviceAccountName: ansible-plan-sa
+      nodeSelector:
+        kubernetes.io/hostname: node-2
