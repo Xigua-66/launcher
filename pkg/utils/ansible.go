@@ -77,7 +77,7 @@ func GetOrCreateInventoryFile(ctx context.Context, cli client.Client, ansible *e
 		return err
 	}
 	// get ansible cr uuid,create inventory file by uid
-	File := fmt.Sprintf("/tmp/%s", ansible.UID)
+	File := fmt.Sprintf("/opt/captain/inventory/%s", ansible.UID)
 	if FileExist(File) {
 		//delete this path file
 		err = os.RemoveAll(File)
@@ -110,7 +110,7 @@ func GetOrCreateVarsFile(ctx context.Context, cli client.Client, ansible *ecnsv1
 		return err
 	}
 	// get ansible cr uuid,create inventory file by uid
-	File := fmt.Sprintf("/tmp/%s.vars", ansible.UID)
+	File := fmt.Sprintf("/opt/captain/test/%s.vars", ansible.UID)
 	if FileExist(File) {
 		//delete this path file
 		err = os.RemoveAll(File)
@@ -153,8 +153,8 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 	if ansible.Spec.Type == ecnsv1.ExecTypeReset {
 		playbook = "reset.yml"
 	}
-	var inventory = fmt.Sprintf("/tmp/%s", ansible.UID)
-	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", "@"+fmt.Sprintf("/tmp/%s.vars", ansible.UID))
+	var inventory = fmt.Sprintf("/opt/captain/inventory/%s", ansible.UID)
+	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", "@"+fmt.Sprintf("/opt/captain/test/%s.vars", ansible.UID))
 	// TODO cmd.Dir need to be change when python version change.
 	if ansible.Spec.SupportPython3 {
 		cmd.Dir = "/opt/captain3"
