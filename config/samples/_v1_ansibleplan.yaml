@@ -1,58 +1,98 @@
 apiVersion: ecns.easystack.com/v1
 kind: AnsiblePlan
 metadata:
-  labels:
-    app.kubernetes.io/name: ansibleplan
-    app.kubernetes.io/instance: ansibleplan-sample
-    app.kubernetes.io/part-of: easystack-eks-op
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: easystack-eks-op
-  name: ansibleplan-sample
+  name: plan-sample
   namespace: test-capo
 spec:
-  type: install
-  install:
-    nodePools:
-      - name: node-1
-        ansibleHost: 192.168.0.1
-        ansibleIP: 192.168.0.1
-      - name: node-2
-        ansibleHost: 192.168.0.2
-        ansibleIP: 192.168.0.2
-      - name: node-3
-        ansibleHost: 192.168.0.3
-        ansibleIP: 192.168.0.3
-      - name: node-4
-        ansibleHost: 192.168.0.4
-        ansibleIP: 192.168.0.4
-    etcd:
-      - node-1
-      - node-2
-      - node-3
-    kubeMaster:
-      - node-1
-      - node-2
-      - node-3
-    kubeNode:
-      - node-4
-    kubeIngress:
-      - node-1
-    kubePrometheus:
-      - node-2
-    kubeLog:
-      - node-3
-    otherGroup:
-      ingress2:
-        - node-2
-    OtherAnsibleOpts:
-      ingress_virtual_vip: 127.0.0.1
-      master_virtual_vip: 127.0.0.1
-      registry_ip: 192.168.183.54
-  auto_run: true
+  autoRun: true
+  clusterName: test1
   done: false
-  cluster_name: test-cluster
-  ssh_secret: test-ssh-secret
-  Version: v1.26.4-es
-  support_python3: false
-
-  # TODO(user): Add fields here
+  install:
+    etcd:
+      - test1master7d3d-zslm5
+      - test1master7d2d-kqcqh
+      - test1master7d2d-fdvf7
+    kubeIngress:
+      - test1ingressbb90-rfz52
+    kubeMaster:
+      - test1master7d3d-zslm5
+      - test1master7d2d-kqcqh
+      - test1master7d2d-fdvf7
+    kubeNode:
+      - test1nodebb85-hdhj4
+      - test1ingressbb90-rfz52
+    nodePools:
+      - ansibleHost: 10.6.0.86
+        ansibleIP: 10.6.0.86
+        memoryReserve: -4
+        name: test1master7d3d-zslm5
+      - ansibleHost: 10.6.0.244
+        ansibleIP: 10.6.0.244
+        memoryReserve: -4
+        name: test1master7d2d-kqcqh
+      - ansibleHost: 10.6.0.62
+        ansibleIP: 10.6.0.62
+        memoryReserve: -4
+        name: test1master7d2d-fdvf7
+      - ansibleHost: 10.6.0.225
+        ansibleIP: 10.6.0.225
+        memoryReserve: -4
+        name: test1nodebb85-hdhj4
+      - ansibleHost: 10.6.0.50
+        ansibleIP: 10.6.0.50
+        memoryReserve: -4
+        name: test1ingressbb90-rfz52
+      - ansibleHost: 10.6.0.140
+        ansibleIP: 10.6.0.140
+        memoryReserve: -4
+        name: test1ingress1bb95-w6x5c
+    other_ansible_opts:
+      charts_repo_ip: 10.222.255.253
+      cloud_master_vip: 172.35.0.2
+      cloud_provider: external
+      container_lvm_enabled: "false"
+      data_dir: /kubernetes
+      dnscache_enabled: "true"
+      docker_repo_enabled: "false"
+      epel_enabled: "false"
+      etcd_data_dir: /kubernetes/etcd
+      flannel_interface: ens3
+      fs_server: 10.20.0.2
+      fs_server_ip: ""
+      harbor_admin_password: cY4EMha0EIpDA2cW
+      harbor_domain: hub.ecns.io
+      helm_enabled: "true"
+      ingress_virtual_vip: 172.35.0.240
+      istio_enabled: "false"
+      keepalived_interface: ens3
+      kube_network_plugin: flannel
+      kube_pods_subnet: 10.232.0.0/14
+      kube_service_addresses: 10.222.0.0/16
+      kubeadm_enabled: "false"
+      kubepods_reserve: "true"
+      local_storageclass: hdd
+      master_virtual_vip: 172.35.0.91
+      openstack_auth_domain: keystone.openstack.svc.cluster.local
+      openstack_cinder_domain: cinder.openstack.svc.cluster.local
+      openstack_nova_domain: nova.openstack.svc.cluster.local
+      openstack_password: test@passw3535rd
+      openstack_project_domain_name: Default
+      openstack_project_name: admin
+      openstack_region_name: RegionOne
+      openstack_user_app_cred_name: xxtest
+      openstack_user_name: admin
+      populate_inventory_to_hosts_file: "false"
+      preinstall_selinux_state: disabled
+      prometheus_pv_size: "10"
+      prometheus_retention_time: "7"
+      registry_ip: 172.38.0.2
+      upstream_nameservers: 114.114.114.114
+      vip_mgmt: 192.168.23.2
+      webhook_enabled: "false"
+    otherGroup:
+      ingress1:
+        - test1ingress1bb95-w6x5c
+  sshSecret: plan-sample-default-ssh
+  supportPython3: false
+  type: install
+  version: v1.20.18
