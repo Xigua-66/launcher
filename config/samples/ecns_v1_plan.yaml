@@ -11,7 +11,7 @@ metadata:
   namespace: test-capo
 spec:
   mode: "new"
-  k8sVersion: "v1.20.18"
+  k8sVersion: "v1.26.4-es"
   support_python3: false
   lb_enable: false
   cluster_name: "test1"
@@ -43,8 +43,8 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
           replica: 2
         - uid: "7d3d"
           availability_zone: "default-az"
@@ -58,8 +58,8 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
           replica: 1
     - name: "test-node"
       number: 1
@@ -77,8 +77,8 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
           replica: 1
     - name: "test-ingress"
       number: 1
@@ -96,11 +96,11 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
           replica: 1
     - name: "test-ingress"
-      number: 1
+      number: 0
       role: "ingress1"
       infras:
         - uid: "bb95"
@@ -115,9 +115,9 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
-          replica: 1
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
+          replica: 0
     - name: "test-ingress"
       number: 0
       role: "ingress2"
@@ -134,8 +134,8 @@ spec:
             - volume_type: "hdd"
               volume_size: 5
               index: 3
-          image: "kylin-base-line"
-          flavor: "2C-4G"
+          image: "kylin-x86-raw-0816"
+          flavor: "8C-8G"
           replica: 0
   monitor:
     pvc_type: "hdd"
@@ -147,7 +147,7 @@ spec:
   ansible_plan_auto: false
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABk3euvnTXpNN3BYQxdYG6B02Gq-viRSaN-JFQrt_CuwfciQ-p2xUiT7E8cZRbfnTK7iIyUpU3aOG6ksVU4tM3rgmE5iiDhGgVzRIB-xp1tznaXxZ0rQ9tyYsl6P3ifKj_yMb0eSWYmKZpAewgysJD60CThvOqfXmy3l9WGu59oE6CtYhU"
+    token: "gAAAAABk4s5ALnOdaflepp3c6R7mC8UKsyITGuQqq8QSjgpSiuQ8wP3rXgy71oduJ98v9TrOUAlEOqpFeTJjZJwsJin1hpnm_-jGps53Fuow7vgQgRJpnSUCLf9MmgBrAMWkqa151alCeeRaKLeuIpmBDjLoO2aOTrhiWqsnFbi7-60WnCvZQho"
     region: "RegionOne"
 
 
