@@ -41,9 +41,9 @@ const (
 	// OpenstackGlobalAuthTpl go template
 	OpenstackGlobalAuthTpl = `[Global]
 auth-url={{.AuthInfo.AuthURL}}
-application_credential_id="{{.AuthInfo.ApplicationCredentialID}}"
-application_credential_secret="{{.AuthInfo.ApplicationCredentialSecret}}"
-region="{{.RegionName}}"
+application-credential-id={{.AuthInfo.ApplicationCredentialID}}
+application-credential-secret={{.AuthInfo.ApplicationCredentialSecret}}
+region={{.RegionName}}
 [BlockStorage]
 bs-version=v2
 ignore-volume-az=True
