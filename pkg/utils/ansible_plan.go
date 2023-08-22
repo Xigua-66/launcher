@@ -17,6 +17,7 @@ import (
 	"time"
 )
 
+
 // DiffReporter is a simple custom reporter that only records differences
 // detected during comparison.
 type DiffReporter struct {
@@ -144,14 +145,17 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 		case ecnsv1.PrometheusSetRole:
 			for name, _ := range machineSet.IPs {
 				ansiblePlan.Spec.Install.KubePrometheus = append(ansiblePlan.Spec.Install.KubePrometheus, name)
+				ansiblePlan.Spec.Install.KubeNode = append(ansiblePlan.Spec.Install.KubeNode, name)
 			}
 		case ecnsv1.LogSetRole:
 			for name, _ := range machineSet.IPs {
 				ansiblePlan.Spec.Install.KubeLog = append(ansiblePlan.Spec.Install.KubeLog, name)
+				ansiblePlan.Spec.Install.KubeNode = append(ansiblePlan.Spec.Install.KubeNode, name)
 			}
 		case ecnsv1.IngressSetRole:
 			for name, _ := range machineSet.IPs {
 				ansiblePlan.Spec.Install.KubeIngress = append(ansiblePlan.Spec.Install.KubeIngress, name)
+				ansiblePlan.Spec.Install.KubeNode = append(ansiblePlan.Spec.Install.KubeNode, name)
 			}
 		case ecnsv1.Etcd:
 			for name, _ := range machineSet.IPs {
@@ -160,8 +164,13 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 		default:
 			for name, _ := range machineSet.IPs {
 				ansiblePlan.Spec.Install.OtherGroup[machineSet.Role] = append(ansiblePlan.Spec.Install.OtherGroup[machineSet.Role], name)
+				ansiblePlan.Spec.Install.KubeNode = append(ansiblePlan.Spec.Install.KubeNode, name)
 			}
 		}
+	}
+	// when etcd is not set,use master as etcd
+	if len(ansiblePlan.Spec.Install.Etcd) == 0 {
+		ansiblePlan.Spec.Install.Etcd = ansiblePlan.Spec.Install.KubeMaster
 	}
 	ansiblePlan.Spec.Install.OtherAnsibleOpts = make(map[string]string, 20)
 	// add test/vars param
@@ -197,6 +206,26 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 	for key, value := range plan.Spec.OtherAnsibleOpts {
 		ansiblePlan.Spec.Install.OtherAnsibleOpts[key] = value
 	}
+	var curIngressHA,curMasterHA ecnsv1.InfraMachine
+	if !plan.Spec.LBEnable {
+		for index, HA := range plan.Status.InfraMachine {
+			if HA.Role == ecnsv1.IngressSetRole {
+				curIngressHA = plan.Status.InfraMachine[index]
+			}
+			if HA.Role == ecnsv1.MasterSetRole {
+				curMasterHA = plan.Status.InfraMachine[index]
+			}
+		}
+		_,IngresHAExisted:=ansiblePlan.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"]
+		if !IngresHAExisted{
+			ansiblePlan.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"] = curIngressHA.HAPrivateIP
+		}
+		_,MasterHAExisted:=ansiblePlan.Spec.Install.OtherAnsibleOpts["master_virtual_vip"]
+		if !MasterHAExisted{
+			ansiblePlan.Spec.Install.OtherAnsibleOpts["master_virtual_vip"] = curMasterHA.HAPrivateIP
+		}
+	}
+	// for ansiblePlan add default value
 	return ansiblePlan
 
 }

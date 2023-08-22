@@ -626,6 +626,22 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 		for _, node := range DiffReporter.AdditionalNodes {
 			ansibleNew.Spec.Install.KubeNode = append(ansibleNew.Spec.Install.KubeNode, node.Name)
 		}
+		//if scale ingress up,OtherGroup need add new ingress node to update new ingress vip
+
+		var flushIngressVirtualVip bool
+		IngressLabel,scaleIngress:=ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_label"]
+		if scaleIngress && !plan.Spec.LBEnable {
+			// get ingress_virtual_vip
+			for _, group := range plan.Status.InfraMachine {
+				if group.Role == IngressLabel {
+					ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"] = group.HAPrivateIP
+				}
+			}
+			if flushIngressVirtualVip {
+				return errors.New("ingress_label is set but ingress_virtual_vip no set ,please check ingress HA status")
+			}
+		}
+
 	} else if DiffReporter.DownScale {
 		// set ansiblePlan type is remove
 		ansibleNew.Spec.Type = ecnsv1.ExecTypeRemove
