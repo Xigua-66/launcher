@@ -533,6 +533,7 @@ func createMachineset(ctx context.Context, scope *scope.Scope, client client.Cli
 	}
 	machineSet.Spec.Template.Labels = make(map[string]string)
 	machineSet.Spec.Template.Labels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
+	machineSet.Spec.Template.Labels[ecnsv1.MachineControlPlaneLabelName] = "true"
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef = &corev1.ObjectReference{}
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.APIVersion = Clusterapibootstrapapi
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.Kind = Clusterapibootstrapkind
