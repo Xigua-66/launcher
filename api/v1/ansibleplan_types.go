@@ -80,6 +80,8 @@ type AnsibleNode struct {
 	MemoryReserve int64 `json:"memoryReserve,omitempty"`
 	// AnsibleSSHPrivateKeyFile is the ansible ssh private key file
 	AnsibleSSHPrivateKeyFile string `json:"ansibleSSHPrivateKeyFile,omitempty"`
+	// AnsibleProxy is the ansible proxy
+	AnsibleProxy string `json:"ansibleProxy,omitempty"`
 }
 
 // AnsiblePlanStatus defines the observed state of AnsiblePlan

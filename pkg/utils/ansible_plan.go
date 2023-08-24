@@ -17,7 +17,6 @@ import (
 	"time"
 )
 
-
 // DiffReporter is a simple custom reporter that only records differences
 // detected during comparison.
 type DiffReporter struct {
@@ -77,6 +76,22 @@ func WaitAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 				return false, nil
 			}
 		}
+		// get bastion information
+		// get openstack cluster status
+		var OCluster clusteropenstack.OpenStackCluster
+		err = cli.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &OCluster)
+		if err != nil {
+			return false, err
+		}
+		if OCluster.Status.Bastion == nil {
+			return false, nil
+		}
+		if OCluster.Status.Bastion.State != clusteropenstack.InstanceStateActive {
+			return false, nil
+		}
+		if OCluster.Status.Bastion.FloatingIP == "" {
+			return false, nil
+		}
 		return true, nil
 	})
 	if err != nil {
@@ -127,6 +142,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 			AnsibleIP:                machine.Status.Addresses[0].Address,
 			MemoryReserve:            -4,
 			AnsibleSSHPrivateKeyFile: "",
+			AnsibleProxy:             plan.Status.Bastion.FloatingIP,
 		})
 	}
 	ansiblePlan.Spec.Install = &ecnsv1.AnsibleInstall{}
@@ -206,7 +222,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 	for key, value := range plan.Spec.OtherAnsibleOpts {
 		ansiblePlan.Spec.Install.OtherAnsibleOpts[key] = value
 	}
-	var curIngressHA,curMasterHA ecnsv1.InfraMachine
+	var curIngressHA, curMasterHA ecnsv1.InfraMachine
 	if !plan.Spec.LBEnable {
 		for index, HA := range plan.Status.InfraMachine {
 			if HA.Role == ecnsv1.IngressSetRole {
@@ -216,12 +232,12 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 				curMasterHA = plan.Status.InfraMachine[index]
 			}
 		}
-		_,IngresHAExisted:=ansiblePlan.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"]
-		if !IngresHAExisted{
+		_, IngresHAExisted := ansiblePlan.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"]
+		if !IngresHAExisted {
 			ansiblePlan.Spec.Install.OtherAnsibleOpts["ingress_virtual_vip"] = curIngressHA.HAPrivateIP
 		}
-		_,MasterHAExisted:=ansiblePlan.Spec.Install.OtherAnsibleOpts["master_virtual_vip"]
-		if !MasterHAExisted{
+		_, MasterHAExisted := ansiblePlan.Spec.Install.OtherAnsibleOpts["master_virtual_vip"]
+		if !MasterHAExisted {
 			ansiblePlan.Spec.Install.OtherAnsibleOpts["master_virtual_vip"] = curMasterHA.HAPrivateIP
 		}
 	}

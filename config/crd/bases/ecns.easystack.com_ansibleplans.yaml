@@ -90,6 +90,9 @@ spec:
                         ansibleIP:
                           description: AnsibleIP is the ansible ip
                           type: string
+                        ansibleProxy:
+                          description: AnsibleProxy is the ansible proxy
+                          type: string
                         ansibleSSHPrivateKeyFile:
                           description: AnsibleSSHPrivateKeyFile is the ansible ssh
                             private key file

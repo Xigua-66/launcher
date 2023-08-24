@@ -354,6 +354,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	plan.Status.ServerGroupID = &ecnsv1.Servergroups{}
 	plan.Status.ServerGroupID.MasterServerGroupID = mastergroupID
 	plan.Status.ServerGroupID.WorkerServerGroupID = nodegroupID
+
 	err = utils.WaitAnsiblePlan(ctx, scope, r.Client, plan)
 	if err != nil {
 		plan.Status.VMDone = false
@@ -420,7 +421,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			return ctrl.Result{}, err
 		}
 	}
-
 
 	// Compare plan with ansiblePlan to update ansiblePlan
 	err = syncAnsiblePlan(ctx, scope, r.Client, plan, &ansiblePlan)
@@ -614,7 +614,7 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 	// del with remove or expansion
 	DiffReporter := &utils.DiffReporter{}
 	option := cmpopts.SortSlices(func(i, j *ecnsv1.AnsibleNode) bool { return i.Name < j.Name })
-	ignore := cmpopts.IgnoreFields(ecnsv1.AnsibleNode{}, "MemoryReserve", "AnsibleSSHPrivateKeyFile")
+	ignore := cmpopts.IgnoreFields(ecnsv1.AnsibleNode{}, "MemoryReserve", "AnsibleSSHPrivateKeyFile", "AnsibleProxy")
 	cmp.Diff(ansibleOld.Spec.Install.NodePools, ansibleNew.Spec.Install.NodePools, option, ignore, cmp.Reporter(DiffReporter))
 	if DiffReporter.NodesUpdate || (DiffReporter.UpScale && DiffReporter.DownScale) {
 		return errors.New("Nodes base's information has changed or need scale and remove node once,please check the instance status")
@@ -629,7 +629,7 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 		//if scale ingress up,OtherGroup need add new ingress node to update new ingress vip
 
 		var flushIngressVirtualVip bool
-		IngressLabel,scaleIngress:=ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_label"]
+		IngressLabel, scaleIngress := ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_label"]
 		if scaleIngress && !plan.Spec.LBEnable {
 			// get ingress_virtual_vip
 			for _, group := range plan.Status.InfraMachine {
@@ -710,6 +710,16 @@ func updatePlanStatus(ctx context.Context, scope *scope.Scope, cli client.Client
 			HAPublicIP:  originPlan.Status.InfraMachine[role].HAPublicIP,
 		}
 	}
+
+	var oc clusteropenstackapis.OpenStackCluster
+	err = cli.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &oc)
+	if err != nil {
+		return err
+	}
+	if oc.Status.Bastion == nil {
+		return errors.New("bastion information is nil,please check bastion vm status and port information")
+	}
+	plan.Status.Bastion = oc.Status.Bastion
 	return nil
 }
 
@@ -868,8 +878,49 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			openstackCluster.Spec.IdentityRef.Kind = "Secret"
 			secretName := fmt.Sprintf("%s-%s", plan.Spec.ClusterName, ProjectAdminEtcSuffix)
 			openstackCluster.Spec.IdentityRef.Name = secretName
+			openstackCluster.Spec.Bastion = &clusteropenstackapis.Bastion{}
+			openstackCluster.Spec.Bastion.Enabled = true
+			openstackCluster.Spec.Bastion.AvailabilityZone = MSet.Infra[0].AvailabilityZone
+			openstackCluster.Spec.Bastion.Instance = clusteropenstackapis.OpenStackMachineSpec{}
+			openstackCluster.Spec.Bastion.Instance.Flavor = MSet.Infra[0].Flavor
+			openstackCluster.Spec.Bastion.Instance.Image = MSet.Infra[0].Image
+			openstackCluster.Spec.Bastion.Instance.SSHKeyName = plan.Spec.SshKey
+			openstackCluster.Spec.Bastion.Instance.CloudName = plan.Spec.ClusterName
+			openstackCluster.Spec.Bastion.Instance.IdentityRef = &clusteropenstackapis.OpenStackIdentityReference{}
+			openstackCluster.Spec.Bastion.Instance.IdentityRef.Kind = "Secret"
+			openstackCluster.Spec.Bastion.Instance.IdentityRef.Name = secretName
+			openstackCluster.Spec.Bastion.Instance.RootVolume = &clusteropenstackapis.RootVolume{}
+			for index, volume := range MSet.Infra[0].Volumes {
+				// bastion only set rootVolume because image use masterSet image
+				if volume.Index == 1 {
+					openstackCluster.Spec.Bastion.Instance.RootVolume.Size = MSet.Infra[0].Volumes[index].VolumeSize
+					openstackCluster.Spec.Bastion.Instance.RootVolume.VolumeType = MSet.Infra[0].Volumes[index].VolumeType
+				}
+			}
+			if plan.Spec.NetMode == ecnsv1.NetWorkExist {
+				openstackCluster.Spec.Bastion.Instance.Networks = []clusteropenstackapis.NetworkParam{
+					{
+						Filter: clusteropenstackapis.NetworkFilter{
+							ID: MSet.Infra[0].Subnets.SubnetNetwork,
+						},
+					},
+				}
+				openstackCluster.Spec.Bastion.Instance.Ports = []clusteropenstackapis.PortOpts{}
+				openstackCluster.Spec.Bastion.Instance.Ports = append(openstackCluster.Spec.Bastion.Instance.Ports, clusteropenstackapis.PortOpts{
+					Network: &clusteropenstackapis.NetworkFilter{
+						ID: MSet.Infra[0].Subnets.SubnetNetwork,
+					},
+					FixedIPs: []clusteropenstackapis.FixedIP{
+						{
+							Subnet: &clusteropenstackapis.SubnetFilter{
+								ID: MSet.Infra[0].Subnets.SubnetUUID,
+							},
+						},
+					},
+				})
+			}
 			openstackCluster.Spec.AllowAllInClusterTraffic = true
-			err := client.Create(ctx, &openstackCluster)
+			err = client.Create(ctx, &openstackCluster)
 			if err != nil {
 				return err
 			}

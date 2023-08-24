@@ -107,7 +107,6 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	}
 
-
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, log, patchHelper, ansible)
 

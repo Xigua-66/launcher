@@ -154,8 +154,7 @@ func AddReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 		scope.Logger.Info("wait add to replicas", "replicas", m.Status.FullyLabeledReplicas)
 
 		scope.Logger.Info("in fact", "replicas", m.Status.FullyLabeledReplicas)
-		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas + 1)
-
+		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas+1)
 
 		switch m.Status.FullyLabeledReplicas {
 		case *fakeOrigin.Spec.Replicas + 1:
@@ -208,7 +207,7 @@ func SubReplicas(ctx context.Context, scope *scope.Scope, cli client.Client, tar
 			return false, err
 		}
 		scope.Logger.Info("in fact", "replicas", m.Status.FullyLabeledReplicas)
-		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas - 1)
+		scope.Logger.Info("target fact", "replicas", *fakeOrigin.Spec.Replicas-1)
 		switch m.Status.FullyLabeledReplicas {
 		case *fakeOrigin.Spec.Replicas - 1:
 			return true, nil
@@ -261,7 +260,7 @@ func checkOpenstackClusterReady(ctx context.Context, client client.Client, plan 
 	if err != nil {
 		return false, err
 	}
-	if cluster.Status.Ready {
+	if cluster.Status.Ready && (cluster.Status.Bastion != nil && cluster.Status.Bastion.State == clusteropenstack.InstanceStateActive) {
 		return true, nil
 	}
 	return false, nil
