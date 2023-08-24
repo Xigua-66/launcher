@@ -17,7 +17,6 @@ import (
 
 // main.go is the entrypoint for the ansiblePlan controller manager.
 
-
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
