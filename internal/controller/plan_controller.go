@@ -19,13 +19,20 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"text/template"
+	"time"
+
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloud/service/loadbalancer"
 	"easystack.com/plan/pkg/cloud/service/networking"
 	"easystack.com/plan/pkg/cloud/service/provider"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
-	"fmt"
+
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	clusteropenstackerrors "github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
 	"github.com/google/go-cmp/cmp"
@@ -40,7 +47,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
+	"k8s.io/client-go/tools/record"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterkubeadm "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	clusterutils "sigs.k8s.io/cluster-api/util"
@@ -55,10 +62,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"strings"
-	"sync"
-	"text/template"
-	"time"
 )
 
 const (
@@ -92,7 +95,8 @@ type AuthConfig struct {
 // PlanReconciler reconciles a Plan object
 type PlanReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	EventRecorder record.EventRecorder
 }
 
 type MachineSetBind struct {
@@ -213,7 +217,10 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
 			err = r.deletePlanResource(ctx, scope, plan)
-			if err != nil {
+			if err == nil {
+				r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanDeleteEvent, "Delete plan success")
+			} else if err != nil {
+				r.EventRecorder.Eventf(plan, corev1.EventTypeWarning, PlanDeleteEvent, "Delete plan failed")
 				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, err
 			}
 
@@ -255,6 +262,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 	// get gopher cloud client
 	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
 	// get or create app credential
+	r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanStartEvent, "Start plan")
 	scope.Logger.Info("Reconciling plan openstack resource")
 	err := syncAppCre(ctx, scope, r.Client, plan)
 	if err != nil {
@@ -420,7 +428,6 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			return ctrl.Result{}, err
 		}
 	}
-
 
 	// Compare plan with ansiblePlan to update ansiblePlan
 	err = syncAnsiblePlan(ctx, scope, r.Client, plan, &ansiblePlan)
@@ -629,7 +636,7 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 		//if scale ingress up,OtherGroup need add new ingress node to update new ingress vip
 
 		var flushIngressVirtualVip bool
-		IngressLabel,scaleIngress:=ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_label"]
+		IngressLabel, scaleIngress := ansibleNew.Spec.Install.OtherAnsibleOpts["ingress_label"]
 		if scaleIngress && !plan.Spec.LBEnable {
 			// get ingress_virtual_vip
 			for _, group := range plan.Status.InfraMachine {
