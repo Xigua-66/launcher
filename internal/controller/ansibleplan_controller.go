@@ -104,6 +104,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				}
 			}
 			r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteEvent, "Delete ansible plan")
+
 			return r.reconcileDelete(ctx, log, patchHelper, ansible)
 		}
 
@@ -123,34 +124,29 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	}
 
 	err := utils.GetOrCreateSSHkeyFile(ctx, r.Client, ansible)
-	if err == nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Get ssh key success")
-	} else if err != nil {
+	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanCreatedEvent, "Get ssh key failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Get ssh key success")
 
 	err = utils.GetOrCreateInventoryFile(ctx, r.Client, ansible)
-	if err == nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
-	} else if err != nil {
+	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	err = utils.GetOrCreateVarsFile(ctx, r.Client, ansible)
-	if err == nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
-	} else if err != nil {
+	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	//TODO start ansible plan process,write pid log to file
 	err = utils.StartAnsiblePlan(ctx, r.Client, ansible)
-	if err == nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")
-	} else if err != nil {
+	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute failed: %s", err.Error())
 		ansible.Spec.Done = true
 		err := patchHelper.Patch(ctx, ansible)
@@ -159,19 +155,20 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 		}
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")
 
 	return ctrl.Result{}, nil
 }
 
 func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
 	err := deleteAnsibleSSHKeySecret(ctx, r.Client, ansible)
-	if err == nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s success", ansible.Spec.SSHSecret)
-	} else if err != nil {
+	if err != nil {
 		log.Error(err, "Delete ansible ssh key secret failed")
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s failed: %s", ansible.Spec.SSHSecret, err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s success", ansible.Spec.SSHSecret)
+
 	return ctrl.Result{}, nil
 }
 

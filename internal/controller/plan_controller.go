@@ -218,11 +218,10 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
 			err = r.deletePlanResource(ctx, scope, plan)
 			if err == nil {
-				r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanDeleteEvent, "Delete plan success")
-			} else if err != nil {
-				r.EventRecorder.Eventf(plan, corev1.EventTypeWarning, PlanDeleteEvent, "Delete plan failed")
+				r.EventRecorder.Eventf(plan, corev1.EventTypeWarning, PlanDeleteEvent, "Delete plan failed: %s", err.Error())
 				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, err
 			}
+			r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanDeleteEvent, "Delete plan success")
 
 			err = r.Client.Get(ctx, req.NamespacedName, plan)
 			if err != nil {
