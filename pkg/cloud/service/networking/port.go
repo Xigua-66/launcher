@@ -245,7 +245,7 @@ func (s *Service) DeletePort(eventObject runtime.Object, portID string) error {
 		if err != nil {
 			if capoerrors.IsNotFound(err) {
 				record.Eventf(eventObject, "SuccessfulDeletePort", "Port with id %d did not exist", portID)
-				return true,nil
+				return true, nil
 			}
 			if capoerrors.IsRetryable(err) {
 				return false, nil

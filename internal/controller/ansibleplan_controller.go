@@ -108,6 +108,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 
 	}
+
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanStartEvent, "Start ansible plan.")
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, log, patchHelper, ansible)

@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/internal/controller"

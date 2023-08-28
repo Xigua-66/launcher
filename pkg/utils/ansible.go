@@ -17,7 +17,7 @@ import (
 const AnsibleInventory = `## Configure 'ip' variable to bind kubernetes services on a
 ## different ip than the default iface
 {{range .NodePools}}
-{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}} ansible_user=root
+{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}} ansible_user=root ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -p 22 -q root@{{.AnsibleProxy}}"'
 {{end}}
 [kube-master]
 {{range .KubeMaster}}
@@ -154,7 +154,7 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 		playbook = "reset.yml"
 	}
 	var inventory = fmt.Sprintf("/opt/captain/inventory/%s", ansible.UID)
-	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", "@"+fmt.Sprintf("/opt/captain/test/%s.vars", ansible.UID),"-vvvvv")
+	cmd := exec.Command("ansible-playbook", "-i", inventory, playbook, "--extra-vars", "@"+fmt.Sprintf("/opt/captain/test/%s.vars", ansible.UID), "-vvvvv")
 	// TODO cmd.Dir need to be change when python version change.
 	if ansible.Spec.SupportPython3 {
 		cmd.Dir = "/opt/captain3"

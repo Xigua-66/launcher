@@ -231,6 +231,8 @@ type PlanStatus struct {
 	InfraMachine map[string]InfraMachine `json:"infra_machine,omitempty"`
 	// PlanLoadBalancer is the list of load balancer of plan
 	PlanLoadBalancer []*LoadBalancer `json:"planLoadBalancer,omitempty"`
+	// Bastion is the bastion of plan
+	Bastion *clusteropenstack.Instance `json:"bastion,omitempty"`
 }
 
 // LoadBalancer represents basic information about the associated OpenStack LoadBalancer.
