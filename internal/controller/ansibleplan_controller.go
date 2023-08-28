@@ -29,6 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -42,7 +43,8 @@ import (
 // AnsiblePlanReconciler reconciles a AnsiblePlan object
 type AnsiblePlanReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	EventRecorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=easystack.com,resources=ansibleplans,verbs=get;list;watch;create;update;patch;delete
@@ -61,7 +63,6 @@ type AnsiblePlanReconciler struct {
 func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	log.Info("start ansible reconcile")
-
 	// Fetch the AnsiblePlan instance
 	ansible := &easystackcomv1.AnsiblePlan{}
 	err := r.Get(ctx, req.NamespacedName, ansible)
@@ -102,11 +103,14 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 					return ctrl.Result{}, err
 				}
 			}
+			r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteEvent, "Delete ansible plan")
+
 			return r.reconcileDelete(ctx, log, patchHelper, ansible)
 		}
 
 	}
 
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanStartEvent, "Start ansible plan.")
 	// Handle non-deleted clusters
 	return r.reconcileNormal(ctx, log, patchHelper, ansible)
 
@@ -121,24 +125,37 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 
 	err := utils.GetOrCreateSSHkeyFile(ctx, r.Client, ansible)
 	if err != nil {
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanCreatedEvent, "Get ssh key failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Get ssh key success")
 
 	err = utils.GetOrCreateInventoryFile(ctx, r.Client, ansible)
 	if err != nil {
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	err = utils.GetOrCreateVarsFile(ctx, r.Client, ansible)
 	if err != nil {
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	//TODO start ansible plan process,write pid log to file
 	err = utils.StartAnsiblePlan(ctx, r.Client, ansible)
 	if err != nil {
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute failed: %s", err.Error())
+		ansible.Spec.Done = true
+		err := patchHelper.Patch(ctx, ansible)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")
 
 	return ctrl.Result{}, nil
 }
@@ -147,8 +164,10 @@ func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Lo
 	err := deleteAnsibleSSHKeySecret(ctx, r.Client, ansible)
 	if err != nil {
 		log.Error(err, "Delete ansible ssh key secret failed")
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s failed: %s", ansible.Spec.SSHSecret, err.Error())
 		return ctrl.Result{}, err
 	}
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s success", ansible.Spec.SSHSecret)
 
 	return ctrl.Result{}, nil
 }
