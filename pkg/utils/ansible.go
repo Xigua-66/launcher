@@ -17,8 +17,9 @@ import (
 const AnsibleInventory = `## Configure 'ip' variable to bind kubernetes services on a
 ## different ip than the default iface
 {{range .NodePools}}
-{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}} ansible_user=root ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -p 22 -q root@{{.AnsibleProxy}}"'
+{{.Name}}  ansible_ssh_host={{.AnsibleHost}} ansible_ssh_private_key_file={{.AnsibleSSHPrivateKeyFile}}  ip={{.AnsibleIP}} ansible_user=root
 {{end}}
+bastion ansible_ssh_host={{.Bastion.AnsibleHost}} ansible_host={{.Bastion.AnsibleHost}}
 [kube-master]
 {{range .KubeMaster}}
 {{.}}

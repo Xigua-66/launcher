@@ -128,6 +128,8 @@ func GetOrCreateSSHkeyFile(ctx context.Context, cli client.Client, ansible *ecns
 			ansible.Spec.Install.NodePools[i].AnsibleSSHPrivateKeyFile = path
 		}
 	}
+	ansible.Spec.Install.OtherAnsibleOpts["ansible_user"] = "root"
+	ansible.Spec.Install.OtherAnsibleOpts["ansible_ssh_private_key_file"] = path
 	return nil
 }
 
