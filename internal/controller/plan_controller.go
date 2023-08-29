@@ -19,6 +19,13 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"text/template"
+	"time"
+
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/cloud/service/loadbalancer"
 	"easystack.com/plan/pkg/cloud/service/networking"
@@ -27,7 +34,6 @@ import (
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
 	"encoding/base64"
-	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	clusteropenstackerrors "github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
 	"github.com/google/go-cmp/cmp"
@@ -42,7 +48,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
+	"k8s.io/client-go/tools/record"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	clusterkubeadm "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
@@ -58,10 +64,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"strings"
-	"sync"
-	"text/template"
-	"time"
 )
 
 const (
@@ -95,7 +97,8 @@ type AuthConfig struct {
 // PlanReconciler reconciles a Plan object
 type PlanReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	EventRecorder record.EventRecorder
 }
 
 type MachineSetBind struct {
@@ -216,9 +219,11 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 
 			scope.Logger.Info("delete plan CR", "Namespace", plan.ObjectMeta.Namespace, "Name", plan.Name)
 			err = r.deletePlanResource(ctx, scope, plan)
-			if err != nil {
+			if err == nil {
+				r.EventRecorder.Eventf(plan, corev1.EventTypeWarning, PlanDeleteEvent, "Delete plan failed: %s", err.Error())
 				return ctrl.Result{RequeueAfter: waitForInstanceBecomeActiveToReconcile}, err
 			}
+			r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanDeleteEvent, "Delete plan success")
 
 			err = r.Client.Get(ctx, req.NamespacedName, plan)
 			if err != nil {
@@ -257,6 +262,7 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
 	// get gopher cloud client
 	// get or create app credential
+	r.EventRecorder.Eventf(plan, corev1.EventTypeNormal, PlanStartEvent, "Start plan")
 	scope.Logger.Info("Reconciling plan openstack resource")
 	err := syncAppCre(ctx, scope, r.Client, plan)
 	if err != nil {

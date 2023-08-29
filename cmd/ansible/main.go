@@ -77,6 +77,7 @@ func main() {
 	if err = (&controller.AnsiblePlanReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		EventRecorder: mgr.GetEventRecorderFor("AnsiblePlan"),
 	}).SetupWithManager(mgr, concurrency(5)); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AnsiblePlan")
 		os.Exit(1)
