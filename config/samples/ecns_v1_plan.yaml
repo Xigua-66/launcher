@@ -30,7 +30,7 @@ spec:
     "etcd_data_dir": "/kubernetes/etcd"
     "flannel_interface": "ens3"
     "fs_server": "10.20.0.2"
-    "fs_server_ip": ""
+    "fs_server_ip": "''"
     "harbor_admin_password": "cY4EMha0EIpDA2cW"
     "harbor_domain": "hub.ecns.io"
     "helm_enabled": "true"
@@ -135,9 +135,9 @@ spec:
           image: "kylin-x86-raw-0816"
           flavor: "8C-8G"
           replica: 1
-    - name: "test-ingress"
-      number: 0
-      role: "ingress1"
+    - name: "test-prometheus"
+      number: 3
+      role: "prometheus"
       infras:
         - uid: "bb95"
           availability_zone: "default-az"
@@ -153,10 +153,10 @@ spec:
               index: 3
           image: "kylin-x86-raw-0816"
           flavor: "8C-8G"
-          replica: 0
-    - name: "test-ingress"
+          replica: 3
+    - name: "test-log"
       number: 0
-      role: "ingress2"
+      role: "log"
       infras:
         - uid: "bb100"
           availability_zone: "default-az"
@@ -176,7 +176,7 @@ spec:
   monitor:
     pvc_type: "cinder"
     pvc_cap: "10"
-    auto_clear_days: "7"
+    auto_clear_days: "7d"
   cni_type: "flannel"
   pod_cidr: "10.232.0.0/14"
   svc_cidr: "10.222.0.0/16"
