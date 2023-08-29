@@ -23,8 +23,10 @@ import (
 	"easystack.com/plan/pkg/cloud/service/loadbalancer"
 	"easystack.com/plan/pkg/cloud/service/networking"
 	"easystack.com/plan/pkg/cloud/service/provider"
+	"easystack.com/plan/pkg/cloudinit"
 	"easystack.com/plan/pkg/scope"
 	"easystack.com/plan/pkg/utils"
+	"encoding/base64"
 	"fmt"
 	clusteropenstackapis "github.com/easystack/cluster-api-provider-openstack/api/v1alpha6"
 	clusteropenstackerrors "github.com/easystack/cluster-api-provider-openstack/pkg/utils/errors"
@@ -42,6 +44,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	clusterapi "sigs.k8s.io/cluster-api/api/v1beta1"
+	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	clusterkubeadm "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	clusterutils "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -253,7 +256,6 @@ func (r *PlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctr
 
 func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope, patchHelper *patch.Helper, plan *ecnsv1.Plan) (_ ctrl.Result, reterr error) {
 	// get gopher cloud client
-	// TODO Compare status.LastPlanMachineSets replicas with plan.Spec's MachineSetReconcile replicas and create AnsiblePlan,only when replicas change
 	// get or create app credential
 	scope.Logger.Info("Reconciling plan openstack resource")
 	err := syncAppCre(ctx, scope, r.Client, plan)
@@ -840,7 +842,38 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 	err := client.Get(ctx, types.NamespacedName{Name: plan.Spec.ClusterName, Namespace: plan.Namespace}, &openstackCluster)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// TODO create openstackcluster resource
+			// prepare bastion cloud-init userdata
+			// 1. add asnible  ssh key
+			var sshKey corev1.Secret
+			err = client.Get(ctx, types.NamespacedName{
+				Namespace: plan.Namespace,
+				Name:      fmt.Sprintf("%s%s", plan.Name, utils.SSHSecretSuffix),
+			}, &sshKey)
+			if err != nil {
+				return err
+			}
+
+			var eksInput cloudinit.EKSInput
+			sshBase64 := base64.StdEncoding.EncodeToString(sshKey.Data["public_key"])
+			eksInput.WriteFiles = append(eksInput.WriteFiles, bootstrapv1.File{
+				Path:        "/root/.ssh/authorized_keys",
+				Owner:       "root:root",
+				Permissions: "0644",
+				Encoding:    bootstrapv1.Base64,
+				Append:      true,
+				Content:     sshBase64,
+			})
+
+			eksInput.PreKubeadmCommands = append(eksInput.PreKubeadmCommands, "sed -i '/^#.*AllowTcpForwarding/s/^#//' /etc/ssh/sshd_config")
+			eksInput.PreKubeadmCommands = append(eksInput.PreKubeadmCommands, "sed -i '/^AllowTcpForwarding/s/no/yes/' /etc/ssh/sshd_config")
+
+			eksInput.PostKubeadmCommands = append(eksInput.PostKubeadmCommands, "service sshd restart")
+
+			bastionUserData, err := cloudinit.NewEKS(&eksInput)
+			if err != nil {
+				return err
+			}
+
 			openstackCluster.Name = plan.Spec.ClusterName
 			openstackCluster.Namespace = plan.Namespace
 			if plan.Spec.LBEnable {
@@ -880,6 +913,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 			openstackCluster.Spec.IdentityRef.Name = secretName
 			openstackCluster.Spec.Bastion = &clusteropenstackapis.Bastion{}
 			openstackCluster.Spec.Bastion.Enabled = true
+			openstackCluster.Spec.Bastion.UserData = string(bastionUserData)
 			openstackCluster.Spec.Bastion.AvailabilityZone = MSet.Infra[0].AvailabilityZone
 			openstackCluster.Spec.Bastion.Instance = clusteropenstackapis.OpenStackMachineSpec{}
 			openstackCluster.Spec.Bastion.Instance.Flavor = MSet.Infra[0].Flavor

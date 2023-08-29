@@ -50,6 +50,8 @@ type AnsibleInstall struct {
 	// like this:
 	//# cat /etc/ansible/hosts
 	NodePools []*AnsibleNode `json:"nodePools,omitempty"`
+	//Bastion
+	Bastion *AnsibleNode `json:"bastion"`
 	// Etcd is the etcd group
 	Etcd []string `json:"etcd,omitempty"`
 	// KubeMaster is the kube master group
@@ -80,8 +82,6 @@ type AnsibleNode struct {
 	MemoryReserve int64 `json:"memoryReserve,omitempty"`
 	// AnsibleSSHPrivateKeyFile is the ansible ssh private key file
 	AnsibleSSHPrivateKeyFile string `json:"ansibleSSHPrivateKeyFile,omitempty"`
-	// AnsibleProxy is the ansible proxy
-	AnsibleProxy string `json:"ansibleProxy,omitempty"`
 }
 
 // AnsiblePlanStatus defines the observed state of AnsiblePlan

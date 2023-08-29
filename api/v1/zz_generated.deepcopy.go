@@ -40,6 +40,11 @@ func (in *AnsibleInstall) DeepCopyInto(out *AnsibleInstall) {
 			}
 		}
 	}
+	if in.Bastion != nil {
+		in, out := &in.Bastion, &out.Bastion
+		*out = new(AnsibleNode)
+		**out = **in
+	}
 	if in.Etcd != nil {
 		in, out := &in.Etcd, &out.Etcd
 		*out = make([]string, len(*in))

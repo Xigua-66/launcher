@@ -142,10 +142,13 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 			AnsibleIP:                machine.Status.Addresses[0].Address,
 			MemoryReserve:            -4,
 			AnsibleSSHPrivateKeyFile: "",
-			AnsibleProxy:             plan.Status.Bastion.FloatingIP,
 		})
 	}
 	ansiblePlan.Spec.Install = &ecnsv1.AnsibleInstall{}
+	ansiblePlan.Spec.Install.Bastion = &ecnsv1.AnsibleNode{}
+	ansiblePlan.Spec.Install.Bastion.Name = "bastion"
+	ansiblePlan.Spec.Install.Bastion.AnsibleHost = plan.Status.Bastion.FloatingIP
+	ansiblePlan.Spec.Install.Bastion.AnsibleIP = plan.Status.Bastion.FloatingIP
 	ansiblePlan.Spec.Install.NodePools = nodePools
 	ansiblePlan.Spec.Install.OtherGroup = make(map[string][]string, 5)
 	for _, machineSet := range plan.Status.InfraMachine {
