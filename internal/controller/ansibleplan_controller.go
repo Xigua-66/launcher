@@ -155,7 +155,13 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 		}
 		return ctrl.Result{}, err
 	}
+
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")
+	ansible.Spec.Done = true
+	err = patchHelper.Patch(ctx, ansible)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
