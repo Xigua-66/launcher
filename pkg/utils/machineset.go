@@ -526,13 +526,15 @@ func createMachineset(ctx context.Context, scope *scope.Scope, client client.Cli
 	machineSet.Spec.DeletePolicy = "Newest"
 	machineSet.Spec.Selector.MatchLabels = make(map[string]string)
 	machineSet.Spec.Selector.MatchLabels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
-	if plan.Spec.UseFloatIP == true && set.Role == "master" {
+	if plan.Spec.UseFloatIP == true && set.Role == ecnsv1.MasterSetRole {
 		machineSet.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 		machineSet.Spec.Template.ObjectMeta.Annotations["machinedeployment.clusters.x-k8s.io/fip"] = "enable"
 	}
 	machineSet.Spec.Template.Labels = make(map[string]string)
 	machineSet.Spec.Template.Labels["cluster.x-k8s.io/cluster-name"] = plan.Spec.ClusterName
-	machineSet.Spec.Template.Labels[ecnsv1.MachineControlPlaneLabelName] = "true"
+	if set.Role == ecnsv1.MasterSetRole {
+		machineSet.Spec.Template.Labels[ecnsv1.MachineControlPlaneLabelName] = "true"
+	}
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef = &corev1.ObjectReference{}
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.APIVersion = Clusterapibootstrapapi
 	machineSet.Spec.Template.Spec.Bootstrap.ConfigRef.Kind = Clusterapibootstrapkind
