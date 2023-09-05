@@ -16,7 +16,7 @@ spec:
   lb_enable: false
   cluster_name: "test1"
   ssh_key: "binshan"
-  use_float_ip: true
+  use_float_ip: false
   node_cidr: "10.6.0.0/24"
   other_ansible_opts:
     "charts_repo_ip": "10.222.255.253"
@@ -50,7 +50,7 @@ spec:
     "openstack_user_name": "admin"
     "populate_inventory_to_hosts_file": "false"
     "preinstall_selinux_state": "disabled"
-    "registry_ip": "172.38.0.2"
+    "registry_ip": "172.35.0.249"
     "upstream_nameservers": "114.114.114.114"
     "vip_mgmt": "192.168.23.2"
     "webhook_enabled": "false"
@@ -180,10 +180,10 @@ spec:
   cni_type: "flannel"
   pod_cidr: "10.232.0.0/14"
   svc_cidr: "10.222.0.0/16"
-  ansible_plan_auto: false
+  ansible_plan_auto: true
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABk7VpalJPz9yYPlAl6-R_0rwnFWQBMOoQtWXDCnvg1KvMkpk8R3-b2wyMEXXkA56uIBMBB7OP2oICxQUHxW_dG8AZZvUvTCTpT9NhFno9t-Eo0qhCaQlKN3btdu8Q0ukWDdEVvKntmVqU6zAUusthEbHDdz7P0J7NGyS1CDYZRmlXhm0s"
+    token: "gAAAAABk9X-jgxNsc9zRDJVrHw1hTc3ZLvChLoza7wxrNoZuIQXpdeT8N5qOtUTkgTetetveSTkrzxjOAav_b1pKOo5Tj8u2xb4tIQZXXJblaP58NDFrbzBP8zRVeZpzWCgj8MRnmfwgIRMXC-_lad7QBG-07v1sArhDocBDPGWplVHrcAEDGyE"
     region: "RegionOne"
 
 
