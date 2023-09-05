@@ -959,7 +959,7 @@ func syncCreateOpenstackCluster(ctx context.Context, client client.Client, plan 
 					},
 				})
 			}
-			openstackCluster.Spec.AllowAllInClusterTraffic = true
+			openstackCluster.Spec.AllowAllInClusterTraffic = false
 			err = client.Create(ctx, &openstackCluster)
 			if err != nil {
 				return err
