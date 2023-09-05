@@ -199,11 +199,11 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 			log.Fatalf("cmd.Wait: %v", err)
 		}
 		stdoutCopy.Flush()
-		ansible.Spec.Done = false
+		ansible.Status.Done = false
 		return err
 	}
 	stdoutCopy.Flush()
-	ansible.Spec.Done = true
+	ansible.Status.Done = true
 
 	return nil
 }

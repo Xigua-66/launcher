@@ -41,11 +41,6 @@ spec:
               clusterName:
                 description: ClusterName is the cluster name
                 type: string
-              done:
-                description: Done is the flag to indicate the plan is done,which is
-                  an antiPattern.if Done is true,don't reconcile again unless the
-                  plan operator is to take the initiative in changing the variable
-                type: boolean
               install:
                 description: NodePools are the node pools
                 properties:
@@ -159,7 +154,6 @@ spec:
             required:
             - autoRun
             - clusterName
-            - done
             - sshSecret
             - supportPython3
             - type
@@ -168,25 +162,13 @@ spec:
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan
             properties:
-              processData:
-                description: process is the data of ansible process
-                type: string
-              processStatus:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster Important: Run "make" to regenerate code after modifying
-                  this file ProcessStatus is the process status'
-                properties:
-                  processPID:
-                    description: ProcessPID is the linux  pid
-                    format: int32
-                    type: integer
-                  processStatus:
-                    description: ProcessStatus is the linux  process status
-                    type: string
-                  reason:
-                    description: Reason is the reason of the process status
-                    type: string
-                type: object
+              done:
+                description: Done is the flag to indicate the plan is done,which is
+                  an antiPattern.if Done is true,don't reconcile again unless the
+                  plan operator is to take the initiative in changing the variable
+                type: boolean
+            required:
+            - done
             type: object
         type: object
     served: true
