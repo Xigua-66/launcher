@@ -607,7 +607,7 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 	ansibleOld.ObjectMeta.DeepCopyInto(&ansibleNew.ObjectMeta)
 	ansibleOld.TypeMeta = ansibleNew.TypeMeta
 	// 0. check if ansiblePlan can be updated
-	if !ansibleOld.Spec.Done {
+	if !ansibleOld.Status.Done {
 		return errors.New("ansiblePlan is not done,task is doing")
 	}
 	// 1. check if upgrade is needed
@@ -622,7 +622,7 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 	// del with remove or expansion
 	DiffReporter := &utils.DiffReporter{}
 	option := cmpopts.SortSlices(func(i, j *ecnsv1.AnsibleNode) bool { return i.Name < j.Name })
-	ignore := cmpopts.IgnoreFields(ecnsv1.AnsibleNode{}, "MemoryReserve", "AnsibleSSHPrivateKeyFile", "AnsibleProxy")
+	ignore := cmpopts.IgnoreFields(ecnsv1.AnsibleNode{}, "MemoryReserve", "AnsibleSSHPrivateKeyFile")
 	cmp.Diff(ansibleOld.Spec.Install.NodePools, ansibleNew.Spec.Install.NodePools, option, ignore, cmp.Reporter(DiffReporter))
 	if DiffReporter.NodesUpdate || (DiffReporter.UpScale && DiffReporter.DownScale) {
 		return errors.New("Nodes base's information has changed or need scale and remove node once,please check the instance status")

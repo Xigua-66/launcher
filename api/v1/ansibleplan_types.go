@@ -32,9 +32,6 @@ type AnsiblePlanSpec struct {
 	Install *AnsibleInstall `json:"install,omitempty"`
 	// AutoRun is the flag to indicate the plan is auto run
 	AutoRun bool `json:"autoRun"`
-	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
-	// unless the plan operator is to take the initiative in changing the variable
-	Done bool `json:"done"`
 	// ClusterName is the cluster name
 	ClusterName string `json:"clusterName"`
 	// SSHSecret is the ssh secret name
@@ -86,13 +83,9 @@ type AnsibleNode struct {
 
 // AnsiblePlanStatus defines the observed state of AnsiblePlan
 type AnsiblePlanStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// ProcessStatus is the process status
-	ProcessStatus ProcessStatus `json:"processStatus,omitempty"`
-
-	// process is the data of ansible process
-	ProcessData string `json:"processData,omitempty"`
+	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
+	// unless the plan operator is to take the initiative in changing the variable
+	Done bool `json:"done"`
 }
 
 type ProcessStatus struct {

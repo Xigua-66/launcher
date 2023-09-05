@@ -4,18 +4,17 @@ package controller
 const (
 	NETATTDEFFINALIZERNAME = "plan.finalizers.eks.io"
 
-	AnsiblePlanStartEvent = "AnsiblePlanStart"
-	AnsiblePlanCreatedEvent = "AnsiblePlanCreated"
-	AnsiblePlanDeleteEvent = "AnsiblePlanDeleted"
+	AnsiblePlanStartEvent        = "AnsiblePlanStart"
+	AnsiblePlanCreatedEvent      = "AnsiblePlanCreated"
+	AnsiblePlanStatusUpdateEvent = "AnsiblePlanUpdated"
+	AnsiblePlanDeleteEvent       = "AnsiblePlanDeleted"
 	AnsiblePlanDeleteSshKeyEvent = "AnsiblePlanDeleteSshKey"
 
-	PlanStartEvent = "PlanStart"
-	PlanCreatedEvent = "PlanCreated"
-	PlanDeleteEvent = "PlanDeleted"
+	PlanStartEvent        = "PlanStart"
+	PlanCreatedEvent      = "PlanCreated"
+	PlanDeleteEvent       = "PlanDeleted"
 	PlanDeleteSshKeyEvent = "AnsiblePlanDeleteSshKey"
-
 )
-
 
 func StringInArray(val string, array []string) bool {
 	for i := range array {
@@ -25,7 +24,6 @@ func StringInArray(val string, array []string) bool {
 	}
 	return false
 }
-
 
 func RemoveString(s string, slice []string) (result []string, found bool) {
 	if len(slice) != 0 {
