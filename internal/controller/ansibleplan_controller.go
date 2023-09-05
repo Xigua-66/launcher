@@ -61,7 +61,7 @@ type AnsiblePlanReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
-func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result,reterr error) {
+func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
 	log := log.FromContext(ctx)
 	log.Info("start ansible reconcile")
 	// Fetch the AnsiblePlan instance
@@ -111,10 +111,10 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	}
 
-
 	// Handle non-deleted status and fields update
 	defer func() {
 		if ansible.ObjectMeta.DeletionTimestamp.IsZero() {
+			r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanStatusUpdateEvent, "patch %s/%s ansible plan status", ansible.Namespace, ansible.Name)
 			if err := patchHelper.Patch(ctx, ansible); err != nil {
 				if reterr == nil {
 					reterr = errors.Wrapf(err, "error patching ansible plan status %s/%s", ansible.Namespace, ansible.Name)
@@ -131,7 +131,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
 	log.Info("Reconciling ansible plan resource")
-	if ansible.Spec.Done {
+	if ansible.Status.Done {
 		log.Info("ansible plan is done,skip reconcile")
 		return ctrl.Result{}, nil
 	}
@@ -161,27 +161,16 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	err = utils.StartAnsiblePlan(ctx, r.Client, ansible)
 	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute failed: %s", err.Error())
-		ansible.Spec.Done = false
-		err := patchHelper.Patch(ctx, ansible)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+		ansible.Status.Done = false
 		return ctrl.Result{}, err
 	}
-	ansible.Spec.Done = true
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")
+	ansible.Status.Done = true
 
 	return ctrl.Result{}, nil
 }
 
 func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
-	err := deleteAnsibleSSHKeySecret(ctx, r.Client, ansible)
-	if err != nil {
-		log.Error(err, "Delete ansible ssh key secret failed")
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s failed: %s", ansible.Spec.SSHSecret, err.Error())
-		return ctrl.Result{}, err
-	}
-	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanDeleteSshKeyEvent, "Delete ansible plan ssh key %s success", ansible.Spec.SSHSecret)
 
 	return ctrl.Result{}, nil
 }
