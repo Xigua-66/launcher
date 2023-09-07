@@ -76,6 +76,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		return ctrl.Result{}, err
 	}
+	var ansibleBak = ansible.DeepCopy()
 	if !ansible.Spec.AutoRun {
 		log.Info("ansible plan auto run is false,skip reconcile")
 		return ctrl.Result{}, nil
@@ -117,7 +118,7 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	defer func() {
 		if ansible.ObjectMeta.DeletionTimestamp.IsZero() {
 			r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanStatusUpdateEvent, "patch %s/%s ansible plan status", ansible.Namespace, ansible.Name)
-			if err := patchHelper.Patch(ctx, ansible); err != nil {
+			if err = utils.PatchAnsiblePlan(ctx, r.Client, ansibleBak, ansible); err != nil {
 				if reterr == nil {
 					reterr = errors.Wrapf(err, "error patching ansible plan status %s/%s", ansible.Namespace, ansible.Name)
 				}
