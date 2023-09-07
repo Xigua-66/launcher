@@ -2,6 +2,8 @@ package utils
 
 import (
 	"time"
+	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -11,26 +13,31 @@ const (
 	backoffFactor              = 1.25
 	backoffDuration            = 5
 	backoffJitter              = 1.0
+	AnsiblePlanMaxRetryTimes   = 5
+	AnsiblePlanExecuteInterval = 10 * time.Second
 	RetryDeleteClusterInterval = 10 * time.Second
 	DeleteClusterTimeout       = 2 * time.Minute
 )
 
 // Retry retries a given function with exponential backoff.
-func Retry(fn wait.ConditionFunc, initialBackoffSec int) error {
-	if initialBackoffSec <= 0 {
-		initialBackoffSec = backoffDuration
+
+func Retry(ctx context.Context, maxRetryTime int, interval time.Duration, operation func() error) error {
+	var err error
+	for attempt := 1; attempt <= maxRetryTime; attempt++ {
+		if err := operation(); err == nil {
+			return nil
+		}
+
+		if attempt < maxRetryTime {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(interval):
+			}
+		}
 	}
-	backoffConfig := wait.Backoff{
-		Steps:    backoffSteps,
-		Factor:   backoffFactor,
-		Duration: time.Duration(initialBackoffSec) * time.Second,
-		Jitter:   backoffJitter,
-	}
-	retryErr := wait.ExponentialBackoff(backoffConfig, fn)
-	if retryErr != nil {
-		return retryErr
-	}
-	return nil
+
+	return fmt.Errorf("max retry attempts reached, %s", err.Error())
 }
 
 // Poll tries a condition func until it returns true, an error, or the timeout

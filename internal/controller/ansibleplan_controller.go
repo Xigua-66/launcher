@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"reflect"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -161,12 +160,12 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	//TODO start ansible plan process,write pid log to file
-	err = Retry(ctx, 5, 5*time.Second, func() error {
+	err = utils.Retry(ctx, utils.AnsiblePlanMaxRetryTimes, utils.AnsiblePlanExecuteInterval, func () error {
 		return utils.StartAnsiblePlan(ctx, r.Client, ansible)
 	})
 	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute failed: %s", err.Error())
-		ansible.Status.Done = false
+		ansible.Status.Done = true
 		return ctrl.Result{}, err
 	}
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")

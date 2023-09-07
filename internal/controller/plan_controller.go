@@ -1311,6 +1311,11 @@ func (r *PlanReconciler) deletePlanResource(ctx context.Context, scope *scope.Sc
 		return err
 	}
 
+	err = deleteAnsiblePlan(ctx, r.Client, scope, plan)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1529,15 +1534,37 @@ func deleteSSHKeySecert(ctx context.Context, scope *scope.Scope, client client.C
 	err := client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: plan.Namespace}, secret)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Log.Info("SSHKeySecert has already been deleted")
+			scope.Logger.Info("SSHKeySecert has already been deleted")
 			return nil
 		}
 	}
 
 	err = client.Delete(ctx, secret)
 	if err != nil {
+		scope.Logger.Error(err, "Delete kubeadmin secert failed.")
 		return err
 	}
 
 	return nil
+}
+
+func deleteAnsiblePlan(ctx context.Context, client client.Client, scope *scope.Scope, plan *ecnsv1.Plan) error {
+	ansiblePlanName := fmt.Sprintf("%s%s", plan.Name, utils.SSHSecretSuffix)
+	ansiblePlan := &ecnsv1.AnsiblePlan{}
+	err := client.Get(ctx, types.NamespacedName{Name: ansiblePlanName, Namespace: plan.Namespace}, ansiblePlan)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			scope.Logger.Info("ansible plan has already been deleted")
+			return nil
+		}
+	}
+
+	err = client.Delete(ctx, ansiblePlan)
+	if err != nil {
+		scope.Logger.Error(err, "Delete ansible plan failed")
+		return err
+	}
+
+	return nil
+
 }

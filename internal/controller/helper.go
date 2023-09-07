@@ -1,12 +1,6 @@
 // Copyright 2022 EasyStack, Inc.
 package controller
 
-import (
-	"context"
-	"time"
-	"fmt"
-)
-
 const (
 	NETATTDEFFINALIZERNAME = "plan.finalizers.eks.io"
 
@@ -42,24 +36,4 @@ func RemoveString(s string, slice []string) (result []string, found bool) {
 		}
 	}
 	return
-}
-
-
-func Retry(ctx context.Context, maxRetryTime int, interval time.Duration, operation func() error) error {
-	var err error
-	for attempt := 1; attempt <= maxRetryTime; attempt++ {
-		if err := operation(); err == nil {
-			return nil
-		}
-
-		if attempt < maxRetryTime {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(interval):
-			}
-		}
-	}
-
-	return fmt.Errorf("max retry attempts reached, %s", err.Error())
 }
