@@ -1049,6 +1049,7 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 	client, err := openstack.NewComputeV2(scope.ProviderClient, gophercloud.EndpointOpts{
 		Region: scope.ProviderClientOpts.RegionName,
 	})
+	client.Microversion = "2.15"
 	if err != nil {
 		return "", "", err
 	}
@@ -1087,7 +1088,7 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 
 	sgMaster, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "master"),
-		Policies: []string{"soft-affinity"},
+		Policies: []string{"anti-affinity"},
 	}).Extract()
 	if err != nil {
 		return "", "", err
@@ -1096,7 +1097,7 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 
 	sgWork, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "work"),
-		Policies: []string{"soft-affinity"},
+		Policies: []string{"soft-anti-affinity"},
 	}).Extract()
 	if err != nil {
 		return "", "", err
