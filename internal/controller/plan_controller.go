@@ -1097,7 +1097,7 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 
 	sgWork, err := servergroups.Create(client, &servergroups.CreateOpts{
 		Name:     fmt.Sprintf("%s_%s", plan.Spec.ClusterName, "work"),
-		Policies: []string{"soft-affinity"},
+		Policies: []string{"soft-anti-affinity"},
 	}).Extract()
 	if err != nil {
 		return "", "", err
