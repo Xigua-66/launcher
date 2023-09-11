@@ -48,9 +48,6 @@ kube-node
 {{.}}
 {{end}}
 [nvidia-accelerator]
-{{range .NvidiaAccelerator}}
-{{.}}
-{{end}}
 {{range $key, $value := .OtherGroup}}
 [{{$key}}]
 {{range $value}}

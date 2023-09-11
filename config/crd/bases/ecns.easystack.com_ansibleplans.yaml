@@ -41,6 +41,9 @@ spec:
               clusterName:
                 description: ClusterName is the cluster name
                 type: string
+              currentRetryTime:
+                description: Times of ansible plan has been executed.
+                type: integer
               install:
                 description: NodePools are the node pools
                 properties:
@@ -137,6 +140,9 @@ spec:
                 required:
                 - bastion
                 type: object
+              maxRetryTime:
+                description: Execute ansible plan max retry times.
+                type: integer
               sshSecret:
                 description: SSHSecret is the ssh secret name
                 type: string
@@ -154,6 +160,8 @@ spec:
             required:
             - autoRun
             - clusterName
+            - currentRetryTime
+            - maxRetryTime
             - sshSecret
             - supportPython3
             - type

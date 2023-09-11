@@ -40,6 +40,10 @@ type AnsiblePlanSpec struct {
 	Version string `json:"version"`
 	// SupportPython3 is the flag to indicate the Host support python3(default python is python3)
 	SupportPython3 bool `json:"supportPython3"`
+	// Execute ansible plan max retry times.
+	MaxRetryTime int `json:"maxRetryTime"`
+	// Times of ansible plan has been executed.
+	CurrentRetryTime int `json:"currentRetryTime"`
 }
 
 type AnsibleInstall struct {

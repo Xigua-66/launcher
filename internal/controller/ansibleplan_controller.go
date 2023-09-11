@@ -133,8 +133,12 @@ func (r *AnsiblePlanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
 	log.Info("Reconciling ansible plan resource")
+
 	if ansible.Status.Done {
-		log.Info("ansible plan is done,skip reconcile")
+		log.Info("ansible plan is done, skip reconcile")
+		return ctrl.Result{}, nil
+	} else if ansible.Spec.MaxRetryTime <= ansible.Spec.CurrentRetryTime {
+		log.Info("The number of ansible plan retry times has reached the max retry times, skip reconcile.")
 		return ctrl.Result{}, nil
 	}
 
@@ -160,12 +164,16 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	//TODO start ansible plan process,write pid log to file
-	err = utils.Retry(ctx, utils.AnsiblePlanMaxRetryTimes, utils.AnsiblePlanExecuteInterval, func () error {
+	err = utils.Retry(ctx, ansible.Spec.MaxRetryTime, utils.AnsiblePlanExecuteInterval, func() error {
+		ansible.Spec.CurrentRetryTime += 1
+		if err := patchHelper.Patch(ctx, ansible); err != nil {
+			return err
+		}
 		return utils.StartAnsiblePlan(ctx, r.Client, ansible)
 	})
 	if err != nil {
 		r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute failed: %s", err.Error())
-		ansible.Status.Done = true
+		ansible.Status.Done = false
 		return ctrl.Result{}, err
 	}
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeWarning, AnsiblePlanStartEvent, "Ansible plan execute success")

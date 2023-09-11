@@ -1049,7 +1049,9 @@ func syncServerGroups(ctx context.Context, scope *scope.Scope, plan *ecnsv1.Plan
 	client, err := openstack.NewComputeV2(scope.ProviderClient, gophercloud.EndpointOpts{
 		Region: scope.ProviderClientOpts.RegionName,
 	})
+
 	client.Microversion = "2.15"
+
 	if err != nil {
 		return "", "", err
 	}

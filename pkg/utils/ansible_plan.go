@@ -130,6 +130,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 	ansiblePlan.Spec.ClusterName = plan.Spec.ClusterName
 	ansiblePlan.Spec.AutoRun = plan.Spec.AnsiblePlanAuto
 	ansiblePlan.Spec.SupportPython3 = plan.Spec.SupportPython3
+	ansiblePlan.Spec.MaxRetryTime = plan.Spec.MaxRetryTime
 	ansiblePlan.Status.Done = false
 	secretName := fmt.Sprintf("%s%s", plan.Name, SSHSecretSuffix)
 	ansiblePlan.Spec.SSHSecret = secretName
