@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: easystack-eks-op
   name: plan-sample-fake
-  namespace: test-capo
+  namespace: mj
 spec:
   mode: "new"
   k8sVersion: "v1.26.4-es"
@@ -19,41 +19,11 @@ spec:
   use_float_ip: false
   node_cidr: "10.6.0.0/24"
   other_ansible_opts:
-    "charts_repo_ip": "10.222.255.253"
     "cloud_master_vip": "172.35.0.2"
-    "cloud_provider": "external"
-    "container_lvm_enabled": "false"
-    "data_dir": "/kubernetes"
-    "dnscache_enabled": "true"
-    "docker_repo_enabled": "false"
-    "epel_enabled": "false"
-    "etcd_data_dir": "/kubernetes/etcd"
-    "flannel_interface": "ens3"
-    "fs_server": "10.20.0.2"
-    "fs_server_ip": "''"
-    "harbor_admin_password": "cY4EMha0EIpDA2cW"
-    "harbor_domain": "hub.ecns.io"
-    "helm_enabled": "true"
-    "istio_enabled": "false"
-    "keepalived_interface": "ens3"
-    "kube_network_plugin": "flannel"
-    "kubeadm_enabled": "false"
-    "kubepods_reserve": "true"
-    "openstack_auth_domain": "keystone.openstack.svc.cluster.local"
-    "openstack_cinder_domain": "cinder.openstack.svc.cluster.local"
-    "openstack_nova_domain": "nova.openstack.svc.cluster.local"
-    "openstack_password": "test@passw3535rd"
-    "openstack_project_domain_name": "Default"
-    "openstack_project_name": "admin"
-    "openstack_region_name": "RegionOne"
-    "openstack_user_app_cred_name": "xxtest"
-    "openstack_user_name": "admin"
-    "populate_inventory_to_hosts_file": "false"
-    "preinstall_selinux_state": "disabled"
     "registry_ip": "172.35.0.249"
-    "upstream_nameservers": "114.114.114.114"
-    "vip_mgmt": "192.168.23.2"
     "webhook_enabled": "false"
+    "flannel_interface": "ens3"
+    "keepalived_interface": "ens3"
   need_keep_alive:
     - "master"
     - "ingress"
@@ -183,7 +153,7 @@ spec:
   ansible_plan_auto: true
   user:
     auth_url: "http://keystone.openstack.svc.cluster.local/v3"
-    token: "gAAAAABk-shhgNI3IRmzqVHhK4IoAhUideUPvYIOedxTwPuyYXgjp-CTQ3epcydST5DWjd4ezDA-ZXgxqIBsKzGT2UPZDlkhY0LL4XpHgYXwIrmz_gStnJKI23KXQwpSJRSbpx-etY0J7U1_fskpt2tA2Im6rxAMcj4xLyhdCI081hu87A9Dep0"
+    token: "gAAAAABk_n6wkqnmA-mP2qqZFjLm0vuUmDnS5784m4-ZjMoE438nnYs9qUMz6NbYKFVCpotTWgNfe0IhlYIqnrMTeQaw8cMghGNHsk4tQeLEqQPnt9lNw7SqBqP0An9eZsG6f2naoafcfYd9uxdUxVuWQLVuvdwItzmLUz_Gp9nn_bkTfYGYFJo"
     region: "RegionOne"
 
 

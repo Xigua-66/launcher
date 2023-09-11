@@ -191,7 +191,7 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 	if len(ansiblePlan.Spec.Install.Etcd) == 0 {
 		ansiblePlan.Spec.Install.Etcd = ansiblePlan.Spec.Install.KubeMaster
 	}
-	ansiblePlan.Spec.Install.OtherAnsibleOpts = make(map[string]string, 20)
+	ansiblePlan.Spec.Install.OtherAnsibleOpts = make(map[string]string, 40)
 	// add test/vars param
 	if plan.Spec.PodCidr != "" {
 		ansiblePlan.Spec.Install.OtherAnsibleOpts["kube_pods_subnet"] = plan.Spec.PodCidr
@@ -245,8 +245,60 @@ func CreateAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Clien
 		}
 	}
 	// for ansiblePlan add default value
+	ansiblePlan = SetDefaultVars(&ansiblePlan)
 	return ansiblePlan
 
+}
+// SetDefaultVars for ansiblePlan add default value
+func SetDefaultVars(ansible *ecnsv1.AnsiblePlan) ecnsv1.AnsiblePlan  {
+	// If vars key not found in list
+	// Set value is item.value
+	var DEFAULT  = map[string]string{
+		"charts_repo_ip": "10.222.255.253",
+		"cloud_provider": "external",
+		"container_lvm_enabled": "false",
+		"data_dir": "/kubernetes",
+		"dnscache_enabled": "true",
+		"docker_repo_enabled": "false",
+		"epel_enabled": "false",
+		"etcd_data_dir": "/kubernetes/etcd",
+		"fs_server": "10.20.0.2",
+		"fs_server_ip": "''",
+		"helm_enabled": "true",
+		"istio_enabled": "false",
+		"kubeadm_enabled": "false",
+		"kubepods_reserve": "true",
+		"openstack_password": "Default",
+		"openstack_project_domain_name": "Default",
+		"openstack_project_name": "Default",
+		"openstack_region_name": "Default",
+		"openstack_user_app_cred_name": "Default",
+		"openstack_user_name": "Default",
+		"populate_inventory_to_hosts_file": "false",
+		"preinstall_selinux_state": "disabled",
+		"upstream_nameservers": "114.114.114.114",
+		"vip_mgmt": "192.168.23.2",
+		"webhook_enabled": "true",
+		"flannel_interface": "eth0",
+		"keepalived_interface": "eth0",
+		"openstack_auth_domain": "keystone.openstack.svc.cluster.local",
+		"openstack_cinder_domain": "cinder.openstack.svc.cluster.local",
+		"openstack_nova_domain": "nova.openstack.svc.cluster.local",
+		"harbor_admin_password": "cY4EMha0EIpDA2cW",
+		"harbor_domain": "hub.ecns.io",
+		"nvidia_driver_install_container": "false",
+		"nvidia_accelerator_enabled": "false",
+	}
+
+	// Check ansible.ansible.Spec.Install.OtherAnsibleOpts not contains DEFAULT's key
+	// Or set default value fot item.
+	for defaultKey, defaultValue := range DEFAULT {
+		_,found:=ansible.Spec.Install.OtherAnsibleOpts[defaultKey]
+		if !found {
+			ansible.Spec.Install.OtherAnsibleOpts[defaultKey] = defaultValue
+		}
+	}
+	return *ansible
 }
 
 // PatchAnsiblePlan makes patch request to the MachineSet object.

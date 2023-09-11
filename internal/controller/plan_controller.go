@@ -662,9 +662,12 @@ func syncAnsiblePlan(ctx context.Context, scope *scope.Scope, cli client.Client,
 		ansibleNew.Spec.Install.OtherAnsibleOpts["delete_nodes_confirmation"] = "yes"
 		ansibleNew.Spec.Install.OtherAnsibleOpts["force_delete_nodes"] = "yes"
 	}
-	err = utils.PatchAnsiblePlan(ctx, cli, ansibleOld, &ansibleNew)
-	if err != nil {
-		return err
+
+	if upgrade || DiffReporter.UpScale || DiffReporter.DownScale {
+		err = utils.PatchAnsiblePlan(ctx, cli, ansibleOld, &ansibleNew)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
