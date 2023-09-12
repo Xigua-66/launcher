@@ -164,7 +164,8 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
 
 	//TODO start ansible plan process,write pid log to file
-	err = utils.Retry(ctx, ansible.Spec.MaxRetryTime, utils.AnsiblePlanExecuteInterval, func() error {
+	rt := ansible.Spec.MaxRetryTime - ansible.Spec.CurrentRetryTime
+	err = utils.Retry(ctx, rt, utils.AnsiblePlanExecuteInterval, func() error {
 		ansible.Spec.CurrentRetryTime += 1
 		if err := patchHelper.Patch(ctx, ansible); err != nil {
 			return err
@@ -183,7 +184,7 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 }
 
 func (r *AnsiblePlanReconciler) reconcileDelete(ctx context.Context, log logr.Logger, patchHelper *patch.Helper, ansible *easystackcomv1.AnsiblePlan) (ctrl.Result, error) {
-
+	//Nothing to do
 	return ctrl.Result{}, nil
 }
 
