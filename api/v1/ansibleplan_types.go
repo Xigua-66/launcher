@@ -18,6 +18,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -86,6 +87,10 @@ type AnsiblePlanStatus struct {
 	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
 	// unless the plan operator is to take the initiative in changing the variable
 	Done bool `json:"done"`
+	// FailureMessage is the reason for the failure of the Ansible operation
+	FailureMessage []string `json:"failureMessage,omitempty"`
+	// FailureTime is the time for the failure of the Ansible operation
+	FailureTime time.Time `json:"failureTime,omitempty"`
 }
 
 type ProcessStatus struct {

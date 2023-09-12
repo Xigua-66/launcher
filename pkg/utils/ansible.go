@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"text/template"
+	"time"
 )
 
 const AnsibleInventory = `## Configure 'ip' variable to bind kubernetes services on a
@@ -193,6 +194,8 @@ func StartAnsiblePlan(ctx context.Context, cli client.Client, ansible *ecnsv1.An
 		return err
 	}
 	if err = cmd.Wait(); err != nil {
+		ansible.Status.FailureTime = time.Now()
+		ansible.Status.FailureMessage = ExtractLast20LinesOfLog(err)
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			log.Printf("Exit Status: %v, For more logs please check the file %s", exiterr, logfile)
 		} else {
