@@ -425,6 +425,7 @@ func (r *PlanReconciler) reconcileNormal(ctx context.Context, scope *scope.Scope
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			return ctrl.Result{}, nil
 		} else {
 			return ctrl.Result{}, err
 		}
