@@ -20,13 +20,12 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/pkg/errors"
-
 	easystackcomv1 "easystack.com/plan/api/v1"
 	ecnsv1 "easystack.com/plan/api/v1"
 	"easystack.com/plan/pkg/utils"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -165,7 +164,7 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 
 	//TODO start ansible plan process,write pid log to file
 	rt := ansible.Spec.MaxRetryTime - ansible.Spec.CurrentRetryTime
-	err = utils.Retry(ctx, rt, utils.AnsiblePlanExecuteInterval, func() error {
+	err = utils.Retry(rt, utils.AnsiblePlanExecuteInterval, func() error {
 		ansible.Spec.CurrentRetryTime += 1
 		if err := patchHelper.Patch(ctx, ansible); err != nil {
 			return err

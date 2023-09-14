@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -21,23 +19,17 @@ const (
 
 // Retry retries a given function with exponential backoff.
 
-func Retry(ctx context.Context, maxRetryTime int, interval time.Duration, operation func() error) error {
+func Retry(maxRetries int, interval time.Duration, operation func() error) error {
 	var err error
-	for attempt := 1; attempt <= maxRetryTime; attempt++ {
-		if err := operation(); err == nil {
+	for i := 0; i < maxRetries; i++ {
+		if err = operation(); err == nil {
 			return nil
 		}
 
-		if attempt < maxRetryTime {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(interval):
-			}
-		}
+		time.Sleep(interval)
 	}
 
-	return fmt.Errorf("max retry attempts reached, %s", err.Error())
+	return err
 }
 
 // Poll tries a condition func until it returns true, an error, or the timeout
