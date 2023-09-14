@@ -41,9 +41,6 @@ spec:
               clusterName:
                 description: ClusterName is the cluster name
                 type: string
-              currentRetryTime:
-                description: Times of ansible plan has been executed.
-                type: integer
               install:
                 description: NodePools are the node pools
                 properties:
@@ -160,7 +157,6 @@ spec:
             required:
             - autoRun
             - clusterName
-            - currentRetryTime
             - maxRetryTime
             - sshSecret
             - supportPython3
@@ -170,12 +166,16 @@ spec:
           status:
             description: AnsiblePlanStatus defines the observed state of AnsiblePlan
             properties:
+              currentRetryTime:
+                description: Times of ansible plan has been executed.
+                type: integer
               done:
                 description: Done is the flag to indicate the plan is done,which is
                   an antiPattern.if Done is true,don't reconcile again unless the
                   plan operator is to take the initiative in changing the variable
                 type: boolean
             required:
+            - currentRetryTime
             - done
             type: object
         type: object

@@ -136,7 +136,7 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 	if ansible.Status.Done {
 		log.Info("ansible plan is done, skip reconcile")
 		return ctrl.Result{}, nil
-	} else if ansible.Spec.MaxRetryTime <= ansible.Spec.CurrentRetryTime {
+	} else if ansible.Spec.MaxRetryTime <= ansible.Status.CurrentRetryTime {
 		log.Info("The number of ansible plan retry times has reached the max retry times, skip reconcile.")
 		return ctrl.Result{}, nil
 	}
@@ -157,16 +157,17 @@ func (r *AnsiblePlanReconciler) reconcileNormal(ctx context.Context, log logr.Lo
 
 	err = utils.GetOrCreateVarsFile(ctx, r.Client, ansible)
 	if err != nil {
-		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file failed: %s", err.Error())
+		r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create vars file failed: %s", err.Error())
 		return ctrl.Result{}, err
 	}
-	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create inventory file success")
+	r.EventRecorder.Eventf(ansible, corev1.EventTypeNormal, AnsiblePlanCreatedEvent, "Create vars file success")
 
 	//TODO start ansible plan process,write pid log to file
-	rt := ansible.Spec.MaxRetryTime - ansible.Spec.CurrentRetryTime
+	rt := ansible.Spec.MaxRetryTime - ansible.Status.CurrentRetryTime
 	err = utils.Retry(rt, utils.AnsiblePlanExecuteInterval, func() error {
-		ansible.Spec.CurrentRetryTime += 1
-		if err := patchHelper.Patch(ctx, ansible); err != nil {
+		ansible.Status.CurrentRetryTime += 1
+		err = r.Client.Status().Update(ctx, ansible)
+		if err != nil {
 			return err
 		}
 		return utils.StartAnsiblePlan(ctx, r.Client, ansible)

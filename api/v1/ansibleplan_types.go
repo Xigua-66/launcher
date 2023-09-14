@@ -42,8 +42,6 @@ type AnsiblePlanSpec struct {
 	SupportPython3 bool `json:"supportPython3"`
 	// Execute ansible plan max retry times.
 	MaxRetryTime int `json:"maxRetryTime"`
-	// Times of ansible plan has been executed.
-	CurrentRetryTime int `json:"currentRetryTime"`
 }
 
 type AnsibleInstall struct {
@@ -90,6 +88,8 @@ type AnsiblePlanStatus struct {
 	// Done is the flag to indicate the plan is done,which is an antiPattern.if Done is true,don't reconcile again
 	// unless the plan operator is to take the initiative in changing the variable
 	Done bool `json:"done"`
+	// Times of ansible plan has been executed.
+	CurrentRetryTime int `json:"currentRetryTime"`
 }
 
 type ProcessStatus struct {
